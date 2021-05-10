@@ -393,10 +393,6 @@ class DiscordWebSocket:
                 'afk': False
             }
 
-        #
-        # if state._intents is not None:
-        #     payload['d']['intents'] = state._intents.value
-
         await self.call_hooks('before_identify', self.shard_id, initial=self._initial_identify)
         await self.send_as_json(payload)
         log.info('Shard ID %s has sent the IDENTIFY payload.', self.shard_id)
