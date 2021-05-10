@@ -1,5 +1,5 @@
 discord.py-self
-==========
+===============
 
 .. image:: https://img.shields.io/pypi/v/discord.py-self.svg
    :target: https://pypi.python.org/pypi/discord.py-self
