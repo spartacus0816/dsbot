@@ -298,7 +298,7 @@ class HTTPClient:
         try:
             data = await self.request(Route('GET', '/users/@me'))
         except HTTPException as exc:
-            self._token(old_token, bot=old_bot)
+            self._token(old_token)
             if exc.response.status == 401:
                 raise LoginFailure('Improper token has been passed.') from exc
             raise
