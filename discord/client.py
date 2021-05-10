@@ -472,7 +472,7 @@ class Client:
 
     # login state management
 
-    async def login(self, token, *, bot=True):
+    async def login(self, token):
         """|coro|
 
         Logs in the client with the specified credentials.
@@ -508,8 +508,8 @@ class Client:
         """
 
         log.info('logging in using static token')
-        await self.http.static_login(token.strip(), bot=bot)
-        self._connection.is_bot = bot
+        await self.http.static_login(token.strip())
+        self._connection.is_bot = False
 
     @utils.deprecated('Client.close')
     async def logout(self):
@@ -656,13 +656,12 @@ class Client:
         TypeError
             An unexpected keyword argument was received.
         """
-        bot = kwargs.pop('bot', True)
         reconnect = kwargs.pop('reconnect', True)
 
         if kwargs:
             raise TypeError("unexpected keyword argument(s) %s" % list(kwargs.keys()))
 
-        await self.login(*args, bot=bot)
+        await self.login(*args)
         await self.connect(reconnect=reconnect)
 
     def run(self, *args, **kwargs):

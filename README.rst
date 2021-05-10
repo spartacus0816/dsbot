@@ -1,4 +1,4 @@
-discord.py
+discord.py-self
 ==========
 
 .. image:: https://img.shields.io/pypi/v/discord.py-self.svg
@@ -8,20 +8,28 @@ discord.py
    :target: https://pypi.python.org/pypi/discord.py-self
    :alt: PyPI supported Python versions
 
+**Self-bot only fork.**
+
 A modern, easy to use, feature-rich, and async ready API wrapper for Discord written in Python.
 
 Fork Changes
 ------------
 
-- Fixed self-bot issues with ``message.content`` and ``message.embed``.
-- Obfuscated user-agent
-- I haven't tried this with a regular bot. You're welcome to try, but I do not recommend it.
+- Fixed self-bot issues with ``message.content`` & ``message.embed``.
+- Added lazy-loading for users.
+- Obfuscated user-agent & IDENTIFY packet.
+- Removed bot user support (no more ``bot=False``)
 
 **Credits:**
 
-- `u/pogofetch <https://www.reddit.com/user/pogofetch/>`_ for most of the changes.
+- `u/pogofetch <https://www.reddit.com/user/pogofetch/>`_ for lazy user loading patches.
 - `karibiusk <https://stackoverflow.com/users/15139805/karibiusk/>`_ for some food for thought.
 - `Maxx0911 <https://www.reddit.com/user/Maxx0911/>`_ for more food for thought.
+
+**Roadmap:**
+
+- Add undocumented Discord API features.
+- Remove/replace bot-only features.
 
 Key Features
 -------------
@@ -62,7 +70,7 @@ To install the development version, do the following:
 .. code:: sh
 
     $ git clone https://github.com/dolfies/discord.py-self
-    $ cd discord.py
+    $ cd discord.py-self
     $ python3 -m pip install -U .[voice]
 
 
@@ -96,7 +104,7 @@ Quick Example
                 await message.channel.send('pong')
 
     client = MyClient()
-    client.run('token', bot=False)
+    client.run('token')
 
 Bot Example
 ~~~~~~~~~~~~~
@@ -112,12 +120,11 @@ Bot Example
     async def ping(ctx):
         await ctx.send('pong')
 
-    bot.run('token', bot=False)
+    bot.run('token')
 
 You can find more examples in the examples directory.
 
 Links
 ------
 
-- `Documentation <https://discordpy.readthedocs.io/en/latest/index.html>`_
-- `Discord API <https://discord.gg/discord-api>`_
+- `Official Discord.py Documentation <https://discordpy.readthedocs.io/en/latest/index.html>`_

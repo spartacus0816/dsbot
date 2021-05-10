@@ -282,18 +282,18 @@ class HTTPClient:
         if self.__session:
             await self.__session.close()
 
-    def _token(self, token, *, bot=True):
+    def _token(self, token):
         self.token = token
-        self.bot_token = bot
+        self.bot_token = False
         self._ack_token = None
 
     # login management
 
-    async def static_login(self, token, *, bot):
+    async def static_login(self, token):
         # Necessary to get aiohttp to stop complaining about session creation
         self.__session = aiohttp.ClientSession(connector=self.connector, ws_response_class=DiscordClientWebSocketResponse)
         old_token, old_bot = self.token, self.bot_token
-        self._token(token, bot=bot)
+        self._token(token)
 
         try:
             data = await self.request(Route('GET', '/users/@me'))
