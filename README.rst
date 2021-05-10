@@ -57,6 +57,15 @@ Otherwise to get voice support you should run the following command:
     py -3 -m pip install -U discord.py-self[voice]
 
 
+To install the development version, do the following:
+
+.. code:: sh
+
+    $ git clone https://github.com/dolfies/discord.py-self
+    $ cd discord.py
+    $ python3 -m pip install -U .[voice]
+
+
 Optional Packages
 ~~~~~~~~~~~~~~~~~~
 
