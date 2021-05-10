@@ -48,7 +48,10 @@ class Relationship:
     def __init__(self, *, state, data):
         self._state = state
         self.type = try_enum(RelationshipType, data['type'])
-        self.user = state.store_user(data['user'])
+        if 'user' in data:
+            self.user = state.store_user(data['user'])
+        else:
+            self.user = state.store_lazy_user(data['user_id'])
 
     def __repr__(self):
         return '<Relationship user={0.user!r} type={0.type!r}>'.format(self)
