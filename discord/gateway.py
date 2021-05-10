@@ -363,22 +363,20 @@ class DiscordWebSocket:
     async def identify(self):
         """Sends the IDENTIFY packet."""
         payload = {
-            'op': self.IDENTIFY,
-            'd': {
-                'token': self.token,
-                'properties': {
-                    '$os': sys.platform,
-                    '$browser': 'discord.py',
-                    '$device': 'discord.py',
-                    '$referrer': '',
-                    '$referring_domain': ''
-                },
-                'compress': True,
-                'large_threshold': 250,
-                'guild_subscriptions': self._connection.guild_subscriptions,
-                'v': 3
-            }
-        }
+             'op': self.IDENTIFY,
+             'd': {
+                 'token': self.token,
+                 'capabilities': 61,
+                 'properties': {
+                     '$os': 'Windows',
+                     '$referrer': '',
+                     '$referring_domain': ''
+                 },
+                 'compress': True,
+                 'large_threshold': 250,
+                 'guild_subscriptions': self._connection.guild_subscriptions,
+             }
+         }
 
         if not self._connection.is_bot:
             payload['d']['synced_guilds'] = []
@@ -395,8 +393,9 @@ class DiscordWebSocket:
                 'afk': False
             }
 
-        if state._intents is not None:
-            payload['d']['intents'] = state._intents.value
+        #
+        # if state._intents is not None:
+        #     payload['d']['intents'] = state._intents.value
 
         await self.call_hooks('before_identify', self.shard_id, initial=self._initial_identify)
         await self.send_as_json(payload)
