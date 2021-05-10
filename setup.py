@@ -42,12 +42,12 @@ extras_require = {
     ]
 }
 
-setup(name='discord.py',
-      author='Rapptz',
-      url='https://github.com/Rapptz/discord.py',
+setup(name='discord.py-self',
+      author='Dolfies',
+      url='https://github.com/dolfies/discord.py-self',
       project_urls={
         "Documentation": "https://discordpy.readthedocs.io/en/latest/",
-        "Issue tracker": "https://github.com/Rapptz/discord.py/issues",
+        "Issue tracker": "https://github.com/dolfies/discord.py-self/issues",
       },
       version=version,
       packages=['discord', 'discord.ext.commands', 'discord.ext.tasks'],
