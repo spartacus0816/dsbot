@@ -1,17 +1,27 @@
 discord.py
 ==========
 
-.. image:: https://discord.com/api/guilds/336642139381301249/embed.png
-   :target: https://discord.gg/r3sSKJJ
-   :alt: Discord server invite
-.. image:: https://img.shields.io/pypi/v/discord.py.svg
-   :target: https://pypi.python.org/pypi/discord.py
+.. image:: https://img.shields.io/pypi/v/discord.py-self.svg
+   :target: https://pypi.python.org/pypi/discord.py-self
    :alt: PyPI version info
-.. image:: https://img.shields.io/pypi/pyversions/discord.py.svg
-   :target: https://pypi.python.org/pypi/discord.py
+.. image:: https://img.shields.io/pypi/pyversions/discord.py-self.svg
+   :target: https://pypi.python.org/pypi/discord.py-self
    :alt: PyPI supported Python versions
 
 A modern, easy to use, feature-rich, and async ready API wrapper for Discord written in Python.
+
+Fork Changes
+------------
+
+- Fixed self-bot issues with ``message.content`` and ``message.embed``.
+- Obfuscated user-agent
+- I haven't tried this with a regular bot. You're welcome to try, but I do not recommend it.
+
+**Credits:**
+
+- `u/pogofetch <https://www.reddit.com/user/pogofetch/>`_ for most of the changes.
+- `karibiusk <https://stackoverflow.com/users/15139805/karibiusk/>`_ for some food for thought.
+- `Maxx0911 <https://www.reddit.com/user/Maxx0911/>`_ for more food for thought.
 
 Key Features
 -------------
@@ -31,29 +41,20 @@ To install the library without full voice support, you can just run the followin
 .. code:: sh
 
     # Linux/macOS
-    python3 -m pip install -U discord.py
+    python3 -m pip install -U discord.py-self
 
     # Windows
-    py -3 -m pip install -U discord.py
+    py -3 -m pip install -U discord.py-self
 
 Otherwise to get voice support you should run the following command:
 
 .. code:: sh
 
     # Linux/macOS
-    python3 -m pip install -U "discord.py[voice]"
+    python3 -m pip install -U "discord.py-self[voice]"
 
     # Windows
-    py -3 -m pip install -U discord.py[voice]
-
-
-To install the development version, do the following:
-
-.. code:: sh
-
-    $ git clone https://github.com/Rapptz/discord.py
-    $ cd discord.py
-    $ python3 -m pip install -U .[voice]
+    py -3 -m pip install -U discord.py-self[voice]
 
 
 Optional Packages
@@ -86,7 +87,7 @@ Quick Example
                 await message.channel.send('pong')
 
     client = MyClient()
-    client.run('token')
+    client.run('token', bot=False)
 
 Bot Example
 ~~~~~~~~~~~~~
@@ -102,7 +103,7 @@ Bot Example
     async def ping(ctx):
         await ctx.send('pong')
 
-    bot.run('token')
+    bot.run('token', bot=False)
 
 You can find more examples in the examples directory.
 
@@ -110,5 +111,4 @@ Links
 ------
 
 - `Documentation <https://discordpy.readthedocs.io/en/latest/index.html>`_
-- `Official Discord Server <https://discord.gg/r3sSKJJ>`_
 - `Discord API <https://discord.gg/discord-api>`_
