@@ -1211,7 +1211,10 @@ class DMChannel(discord.abc.Messageable, Hashable):
 
     def __init__(self, *, me, state, data):
         self._state = state
-        self.recipient = state.store_user(data['recipients'][0])
+        if 'recipients' in data:
+            self.recipient = state.store_user(data['recipients'][0])
+        else:
+            self.recipient = state.store_lazy_user(data['recipient_ids'][0])
         self.me = me
         self.id = int(data['id'])
 
