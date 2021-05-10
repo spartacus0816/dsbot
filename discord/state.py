@@ -39,7 +39,7 @@ import os
 
 from .guild import Guild
 from .activity import BaseActivity
-from .user import User, ClientUser
+from .user import User, ClientUser, LazyUser
 from .emoji import Emoji
 from .mentions import AllowedMentions
 from .partial_emoji import PartialEmoji
@@ -279,6 +279,18 @@ class ConnectionState:
             if user.discriminator != '0000':
                 self._users[user_id] = user
             return user
+
+    def store_lazy_user(self, user_id):
+        # this way is 300% faster than `dict.setdefault`.
+        user_id = int(user_id)
+        try:
+            return self._users[user_id]
+        except KeyError:
+            user = LazyUser(state=self, user_id=user_id)
+            if user.discriminator != '0000':
+                self._users[user_id] = user
+            return user
+        
 
     def store_user_no_intents(self, data):
         return User(state=self, data=data)
