@@ -12,9 +12,9 @@ A basic wrapper for the Discord API.
 """
 
 __title__ = 'discord'
-__author__ = 'Rapptz'
+__author__ = 'dolfies'
 __license__ = 'MIT'
-__copyright__ = 'Copyright 2015-present Rapptz'
+__copyright__ = 'Copyright 2015-present Dolfies'
 __version__ = '1.7.2'
 
 __path__ = __import__('pkgutil').extend_path(__path__, __name__)
