@@ -30,7 +30,7 @@ Fork Changes
 **Roadmap:**
 
 - Add undocumented Discord API features.
-- Fix ``guild.members`` & large guild handling (this will also fix ``discord.ext.commands``.
+- Fix ``guild.members`` & large guild handling (this will also fix ``discord.ext.commands``).
 
 Key Features
 -------------
