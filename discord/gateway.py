@@ -369,6 +369,7 @@ class DiscordWebSocket:
                  'capabilities': 61,
                  'properties': {
                      '$os': 'Windows',
+                     '$browser': 'Chrome',
                      '$referrer': '',
                      '$referring_domain': ''
                  },

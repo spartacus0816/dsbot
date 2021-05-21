@@ -312,6 +312,11 @@ class Guild(Hashable):
             member = Member(data=mdata, guild=self, state=state)
             if cache_joined or (cache_online_members and member.raw_status != 'offline') or member.id == self_id:
                 self._add_member(member)
+                
+        for mdata in guild.get('my_member', []):
+            member = Member(data=mdata, guild=self, state=state)
+            if cache_joined or (cache_online_members and member.raw_status != 'offline') or member.id == self_id:
+                self._add_member(member)
 
         self._sync(guild)
         self._large = None if member_count is None else self._member_count >= 250
