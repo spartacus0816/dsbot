@@ -1,5 +1,5 @@
 discord.py-self
-===============
+==============
 
 .. image:: https://img.shields.io/pypi/v/discord.py-self.svg
    :target: https://pypi.python.org/pypi/discord.py-self
@@ -18,7 +18,8 @@ Fork Changes
 - Fixed self-bot issues with ``message.content`` & ``message.embed``.
 - Added lazy-loading for users.
 - Obfuscated user-agent & IDENTIFY packet.
-- Removed bot user support (no more ``bot=False``)
+- Removed bot user support (no more ``bot=False``).
+- Removed bot-only methods and un-deprecated user ones.
 
 **Credits:**
 
@@ -29,7 +30,7 @@ Fork Changes
 **Roadmap:**
 
 - Add undocumented Discord API features.
-- Remove/replace bot-only features.
+- Fix ``guild.members`` & large guild handling (this will also fix ``discord.ext.commands``.
 
 Key Features
 -------------
