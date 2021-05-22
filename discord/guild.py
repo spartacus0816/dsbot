@@ -26,8 +26,6 @@ DEALINGS IN THE SOFTWARE.
 
 import copy
 from collections import namedtuple
-import asyncio
-import concurrent.futures
 
 from . import utils
 from .role import Role
