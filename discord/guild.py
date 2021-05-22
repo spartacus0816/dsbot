@@ -26,13 +26,15 @@ DEALINGS IN THE SOFTWARE.
 
 import copy
 from collections import namedtuple
+import asyncio
+import concurrent.futures
 
 from . import utils
 from .role import Role
 from .member import Member, VoiceState
 from .emoji import Emoji
 from .errors import InvalidData
-from .permissions import PermissionOverwrite
+from .permissions import PermissionOverwrite, Permissions
 from .colour import Colour
 from .errors import InvalidArgument, ClientException
 from .channel import *
@@ -315,14 +317,28 @@ class Guild(Hashable):
                 
         for mdata in guild.get('my_member', []):
             member = Member(data=mdata, guild=self, state=state)
-            if cache_joined or (cache_online_members and member.raw_status != 'offline') or member.id == self_id:
-                self._add_member(member)
+            self._add_member(member)
 
         self._sync(guild)
         self._large = None if member_count is None else self._member_count >= 250
 
         self.owner_id = utils._get_as_snowflake(guild, 'owner_id')
         self.afk_channel = self.get_channel(utils._get_as_snowflake(guild, 'afk_channel_id'))
+
+        if 'channels' in guild:
+            channel = self.channels[0]
+            perms = Permissions(channel.permissions_for(self.me).value)
+            if perms.manage_guild == True:
+                state = self._state
+                asynception = state.loop.create_task(state.query_members(self, "", 0, None, True, True))
+                try:
+                    mdata = future.result()
+                except:
+                    pass
+                else:
+                    for mdata in mdata_list:
+                        member = Member(data=mdata, guild=self, state=state)
+                        self._add_member(member)
 
         for obj in guild.get('voice_states', []):
             self._update_voice_state(obj, int(obj['channel_id']))
