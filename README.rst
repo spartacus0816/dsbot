@@ -20,17 +20,21 @@ Fork Changes
 - Obfuscated user-agent & IDENTIFY packet.
 - Removed bot user support (no more ``bot=False``).
 - Removed bot-only methods and un-deprecated user ones.
+- (Partially) fixed ``guild.members``.
+- Fixed ``guild.me``.
+- Fixed large guild events.
 
 **Credits:**
 
 - `u/pogofetch <https://www.reddit.com/user/pogofetch/>`_ for lazy user loading patches.
 - `karibiusk <https://stackoverflow.com/users/15139805/karibiusk/>`_ for some food for thought.
 - `Maxx0911 <https://www.reddit.com/user/Maxx0911/>`_ for more food for thought.
+- `arandomnewaccount <https://www.reddit.com/user/obviouslymymain123/>`_for Discord API help.
 
 **Roadmap:**
 
 - Add undocumented Discord API features.
-- Fix ``guild.members`` & large guild handling (this will also fix ``discord.ext.commands``).
+- Continue fixing ``guild.members``.
 
 Key Features
 -------------
