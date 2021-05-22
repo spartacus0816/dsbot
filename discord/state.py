@@ -477,7 +477,7 @@ class ConnectionState:
         self._users[user.id] = user
         
         for merged_member_list, guild_data in zip(data['merged_members'], data['guilds']):
-            guild_data['my_member'] = merged_member_list
+            guild_data['me'] = merged_member_list
             self._add_guild_from_data(guild_data)
 
         for relationship in data.get('relationships', []):

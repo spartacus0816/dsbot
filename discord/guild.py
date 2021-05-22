@@ -313,7 +313,7 @@ class Guild(Hashable):
             if cache_joined or (cache_online_members and member.raw_status != 'offline') or member.id == self_id:
                 self._add_member(member)
                 
-        for mdata in guild.get('my_member', []):
+        for mdata in guild.get('me', []):
             member = Member(data=mdata, guild=self, state=state)
             self._add_member(member)
 
