@@ -323,20 +323,7 @@ class Guild(Hashable):
         self.owner_id = utils._get_as_snowflake(guild, 'owner_id')
         self.afk_channel = self.get_channel(utils._get_as_snowflake(guild, 'afk_channel_id'))
 
-        if 'channels' in guild:
-            channel = self.channels[0]
-            perms = Permissions(channel.permissions_for(self.me).value)
-            if perms.manage_guild == True:
-                state = self._state
-                asynception = state.loop.create_task(state.query_members(self, "", 0, None, True, True))
-                try:
-                    mdata = future.result()
-                except:
-                    pass
-                else:
-                    for mdata in mdata_list:
-                        member = Member(data=mdata, guild=self, state=state)
-                        self._add_member(member)
+        self._fetch_members(guild)
 
         for obj in guild.get('voice_states', []):
             self._update_voice_state(obj, int(obj['channel_id']))
@@ -360,6 +347,22 @@ class Guild(Hashable):
                 factory, ch_type = _channel_factory(c['type'])
                 if factory:
                     self._add_channel(factory(guild=self, data=c, state=self._state))
+
+    def _fetch_members(self, data):
+        if 'channels' in data:
+            channel = self.channels[0]
+            perms = Permissions(channel.permissions_for(self.me).value)
+            if perms.manage_guild == True:
+                state = self._state
+                asynception = state.loop.create_task(state.query_members(self, "", 0, None, True, True))
+                try:
+                    mdata = future.result()
+                except:
+                    pass
+                else:
+                    for mdata in mdata_list:
+                        member = Member(data=mdata, guild=self, state=state)
+                        self._add_member(member)
 
     @property
     def channels(self):
