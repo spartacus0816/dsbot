@@ -517,8 +517,6 @@ class Client:
 
         Logs in the client with the specified credentials.
 
-        This function can be used in two different ways.
-
         .. warning::
 
             Logging on with a user token is against the Discord

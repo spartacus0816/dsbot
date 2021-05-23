@@ -355,14 +355,6 @@ class Guild(Hashable):
             if perms.manage_guild == True:
                 state = self._state
                 asynception = state.loop.create_task(state.query_members(self, "", 0, None, True, True))
-                try:
-                    mdata = future.result()
-                except:
-                    pass
-                else:
-                    for mdata in mdata_list:
-                        member = Member(data=mdata, guild=self, state=state)
-                        self._add_member(member)
 
     @property
     def channels(self):
