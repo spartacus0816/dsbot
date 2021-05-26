@@ -195,9 +195,11 @@ class BaseUser(_BaseUser):
     def default_avatar(self):
         """:class:`DefaultAvatar`: Returns the default avatar for a given user. This is calculated by the user's discriminator."""
         try:
-            return try_enum(DefaultAvatar, int(self.discriminator) % len(DefaultAvatar))
+            avatar = try_enum(DefaultAvatar, int(self.discriminator) % len(DefaultAvatar))
         except ValueError:
-            return 0
+            # With lazy users, the discriminator is broken.
+            avatar = 0
+        return avatar
 
     @property
     def default_avatar_url(self):
