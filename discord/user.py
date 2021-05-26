@@ -194,12 +194,7 @@ class BaseUser(_BaseUser):
     @property
     def default_avatar(self):
         """:class:`DefaultAvatar`: Returns the default avatar for a given user. This is calculated by the user's discriminator."""
-        try:
-            avatar = try_enum(DefaultAvatar, int(self.discriminator) % len(DefaultAvatar))
-        except ValueError:
-            # With lazy users, the discriminator is broken.
-            avatar = 0
-        return avatar
+        return avatar = try_enum(DefaultAvatar, int(self.discriminator) % len(DefaultAvatar))
 
     @property
     def default_avatar_url(self):
@@ -853,7 +848,7 @@ class LazyUser(BaseUser):
         fake_data = {
             'username': None,
             'id': user_id,
-            'discriminator': 'BUMBA',
+            'discriminator': 0000,
             'avatar': None,
         }
 
