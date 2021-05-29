@@ -394,7 +394,7 @@ class ConnectionState:
 
         return channel or Object(id=channel_id), guild
 
-    async def chunker(self, guild_id, query='', limit=0, presences=False, *, nonce=None):
+    async def chunker(self, guild_id, query='', limit=0, presences=True, *, nonce=None):
         ws = self._get_websocket(guild_id) # This is ignored upstream
         await ws.request_chunks(guild_id, query=query, limit=limit, presences=presences, nonce=nonce)
 

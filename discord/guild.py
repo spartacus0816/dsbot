@@ -354,7 +354,7 @@ class Guild(Hashable):
             perms = Permissions(channel.permissions_for(self.me).value)
             if perms.manage_guild == True:
                 state = self._state
-                asynception = state.loop.create_task(state.query_members(self, "", 0, None, True, True))
+                asynception = state.loop.create_task(self.chunk())
 
     @property
     def channels(self):
@@ -2217,7 +2217,7 @@ class Guild(Hashable):
         """|coro|
 
         Requests all members that belong to this guild. In order to use this,
-        :meth:`Intents.members` must be enabled.
+        you must have :attr:`Permission.manage_guild`.
 
         This is a websocket operation and can be slow.
 
@@ -2240,7 +2240,7 @@ class Guild(Hashable):
         if not self._state.is_guild_evicted(self):
             return await self._state.chunk_guild(self, cache=cache)
 
-    async def query_members(self, query=None, *, limit=5, user_ids=None, presences=False, cache=True):
+    async def query_members(self, query=None, *, limit=5, user_ids=None, presences=True, cache=True):
         """|coro|
 
         Request members that belong to this guild whose username starts with

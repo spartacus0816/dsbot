@@ -249,6 +249,10 @@ class DiscordWebSocket:
         a connection issue.
     GUILD_SYNC
         Send only. Requests a guild sync.
+    DM
+        Send only. Not sure what this does. 
+    LAZY_GUILD_REQUEST
+        Send only. Subscribes you to large guilds. 
     gateway
         The gateway we are currently connected to.
     token
@@ -268,6 +272,8 @@ class DiscordWebSocket:
     HELLO              = 10
     HEARTBEAT_ACK      = 11
     GUILD_SYNC         = 12
+    DM                 = 13
+    LAZY_GUILD_REQUEST = 14
 
     def __init__(self, socket, *, loop):
         self.socket = socket
