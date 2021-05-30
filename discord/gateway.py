@@ -247,12 +247,10 @@ class DiscordWebSocket:
     HEARTBEAT_ACK
         Receive only. Confirms receiving of a heartbeat. Not having it implies
         a connection issue.
-    GUILD_SYNC
-        Send only. Requests a guild sync.
     DM
-        Send only. Not sure what this does. 
+        Send only. Used to get DM features.
     LAZY_GUILD_REQUEST
-        Send only. Subscribes you to large guilds. 
+        Send only. Subscribes you to guilds. Responds with GUILD_MEMBER_LIST_UPDATE sync.
     gateway
         The gateway we are currently connected to.
     token
@@ -326,6 +324,8 @@ class DiscordWebSocket:
         ws.session_id = session
         ws.sequence = sequence
         ws._max_heartbeat_timeout = client._connection.heartbeat_timeout
+        ws._user_agent = client.http.user_agent
+        ws._super_properties = client.http.super_properties
 
         client._connection._update_references(ws)
 
@@ -369,36 +369,26 @@ class DiscordWebSocket:
     async def identify(self):
         """Sends the IDENTIFY packet."""
         payload = {
-             'op': self.IDENTIFY,
-             'd': {
-                 'token': self.token,
-                 'capabilities': 61,
-                 'properties': {
-                     '$os': 'Windows',
-                     '$browser': 'Chrome',
-                     '$referrer': '',
-                     '$referring_domain': ''
-                 },
-                 'compress': True,
-                 'large_threshold': 250,
-                 'guild_subscriptions': self._connection.guild_subscriptions,
-             }
-         }
-
-        if not self._connection.is_bot:
-            payload['d']['synced_guilds'] = []
-
-        if self.shard_id is not None and self.shard_count is not None:
-            payload['d']['shard'] = [self.shard_id, self.shard_count]
-
-        state = self._connection
-        if state._activity is not None or state._status is not None:
-            payload['d']['presence'] = {
-                'status': state._status,
-                'game': state._activity,
-                'since': 0,
-                'afk': False
+            'op': self.IDENTIFY,
+            'd': {
+                'token': self.token,
+                'capabilities': 125,
+                'properties': self._super_properties,
+                'presence': {
+                    'status': 'online',
+                    'since': 0,
+                    'activities': [],
+                    'afk': False
+                },
+                'compress': False,
+                'client_state': {
+                    'guild_hashes': {},
+                    'highest_last_message_id': '0',
+                    'read_state_version': 0,
+                    'user_guild_settings_version': -1
+                }
             }
+        }
 
         await self.call_hooks('before_identify', self.shard_id, initial=self._initial_identify)
         await self.send_as_json(payload)

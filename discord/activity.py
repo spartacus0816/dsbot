@@ -687,9 +687,6 @@ class CustomActivity(BaseActivity):
     def __init__(self, name, *, emoji=None, **extra):
         super().__init__(**extra)
         self.name = name
-        self.state = extra.pop('state', None)
-        if self.name == 'Custom Status':
-            self.name = self.state
 
         if emoji is None:
             self.emoji = emoji
@@ -711,17 +708,11 @@ class CustomActivity(BaseActivity):
         return ActivityType.custom
 
     def to_dict(self):
-        if self.name == self.state:
-            o = {
-                'type': ActivityType.custom.value,
-                'state': self.name,
-                'name': 'Custom Status',
-            }
-        else:
-            o = {
-                'type': ActivityType.custom.value,
-                'name': self.name,
-            }
+        o = {
+            'type': ActivityType.custom.value,
+            'state': self.name,
+            'name': 'Custom Status',
+        }
 
         if self.emoji:
             o['emoji'] = self.emoji.to_dict()

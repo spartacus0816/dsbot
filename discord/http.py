@@ -107,7 +107,7 @@ class HTTPClient:
         self._global_over = asyncio.Event()
         self._global_over.set()
         self.token = None
-        self.bot_token = False
+        self.bot_token = False # HERE
         self.proxy = proxy
         self.proxy_auth = proxy_auth
         self.super_properties = {}
@@ -318,7 +318,7 @@ class HTTPClient:
 
     def _token(self, token):
         self.token = token
-        self.bot_token = False
+        self.bot_token = False # HERE
         self._ack_token = None
 
     # login management
@@ -326,7 +326,7 @@ class HTTPClient:
     async def static_login(self, token):
         # Necessary to get aiohttp to stop complaining about session creation
         self.__session = aiohttp.ClientSession(connector=self.connector, ws_response_class=DiscordClientWebSocketResponse)
-        old_token, old_bot = self.token, self.bot_token
+        old_token, old_bot = self.token, self.bot_token # HERE
         self._token(token)
 
         try:

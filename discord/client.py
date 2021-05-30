@@ -541,7 +541,7 @@ class Client:
 
         log.info('logging in using static token')
         await self.http.static_login(token.strip())
-        self._connection.is_bot = False
+        self._connection.is_bot = False # HERE
 
     @utils.deprecated('Client.close')
     async def logout(self):

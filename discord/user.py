@@ -533,6 +533,8 @@ class ClientUser(BaseUser):
         convert_emoticons: :class:`bool`
             Whether or not to automatically convert emoticons into emojis.
             e.g. :-) -> 😃
+        custom_status: :class:`dict`
+            Sent when setting a custom status with :meth:change_presence.
         default_guilds_restricted: :class:`bool`
             Whether or not to automatically disable DMs between you and
             members of new guilds you join.
@@ -619,6 +621,13 @@ class ClientUser(BaseUser):
         theme = kwargs.pop('theme', None)
         if theme:
             payload.update({'theme': theme.value})
+
+        custom_status = kwargs.pop('custom_status', None)
+        if custom_status != None:
+            if custom_status:
+                payload.update({'custom_status': custom_status})
+            else:
+                payload.update({'custom_status': {}})
 
         payload.update(kwargs)
 

@@ -113,7 +113,7 @@ class ConnectionState:
 
         self.dispatch = dispatch
         self.syncer = syncer
-        self.is_bot = None
+        self.is_bot = None # HERE
         self.handlers = handlers
         self.hooks = hooks
         self.shard_count = None
