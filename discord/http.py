@@ -25,8 +25,10 @@ DEALINGS IN THE SOFTWARE.
 """
 
 import asyncio
+from base64 import b64encode
 import json
 import logging
+import re
 import sys
 from urllib.parse import quote as _uriquote
 import weakref
@@ -34,6 +36,7 @@ import weakref
 import aiohttp
 
 from .errors import HTTPException, Forbidden, NotFound, LoginFailure, DiscordServerError, GatewayNotFound
+from .extras import get_build_number, get_user_agent, parse_user_agent
 from .gateway import DiscordClientWebSocketResponse
 from . import __version__, utils
 
@@ -107,9 +110,10 @@ class HTTPClient:
         self.bot_token = False
         self.proxy = proxy
         self.proxy_auth = proxy_auth
+        self.super_properties = {}
         self.use_clock = not unsync_clock
 
-        self.user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36'
+        self.user_agent = get_user_agent()
 
     def recreate(self):
         if self.__session.closed:
@@ -143,8 +147,18 @@ class HTTPClient:
 
         # header creation
         headers = {
+            'Origin': 'https://discord.com',
             'User-Agent': self.user_agent,
-            'X-Ratelimit-Precision': 'millisecond',
+            'Accept': '*/*',
+            'Accept-Encoding': 'gzip, deflate',
+            'Accept-Language': 'en-US',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Referer': 'https://discord.com/channels/@me',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin',
+            'Connection': 'keep-alive',
         }
 
         if self.token is not None:
@@ -161,6 +175,26 @@ class HTTPClient:
         else:
             if reason:
                 headers['X-Audit-Log-Reason'] = _uriquote(reason, safe='/ ')
+
+        if not self.super_properties:
+            self.super_properties = {
+                'os': 'Windows',
+                'browser': 'Chrome',
+                'device': '',
+                'browser_user_agent': self.user_agent,
+                'browser_version': '.'.join(filter(None, parse_user_agent(self.user_agent))),
+                'os_version': '10',
+                'referrer': '',
+                'referring_domain': '',
+                'referrer_current': '',
+                'referring_domain_current': '',
+                'release_channel': 'stable',
+                'system_locale': 'en-US',
+                'client_build_number': await get_build_number(self.__session),
+                'client_event_source': None
+            }
+
+        headers['X-Super-Properties'] = b64encode(json.dumps(self.super_properties).encode()).decode('utf-8')
 
         kwargs['headers'] = headers
 

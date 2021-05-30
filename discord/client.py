@@ -1382,6 +1382,34 @@ class Client:
             data['rpc_origins'] = None
         return AppInfo(self._connection, data)
 
+    async def fetch_user(self, user_id):
+        """|coro|
+
+        Retrieves a :class:`~discord.User` based on their ID.
+        This calls fetch_user_profile(). You do not have to share
+        any guilds with the user to get this information, however
+        many operations do require that you do.
+
+        Parameters
+        -----------
+        user_id: :class:`int`
+            The user's ID to fetch from.
+
+        Raises
+        -------
+        :exc:`.NotFound`
+            A user with this ID does not exist.
+        :exc:`.HTTPException`
+            Fetching the user failed.
+
+        Returns
+        --------
+        :class:`~discord.User`
+            The user you requested.
+        """
+        profile = await self.fetch_user_profile(user_id)
+        return profile.user
+
     async def fetch_user_profile(self, user_id):
         """|coro|
 
