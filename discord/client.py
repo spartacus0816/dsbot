@@ -527,8 +527,7 @@ class Client:
         Parameters
         -----------
         token: :class:`str`
-            The authentication token. Do not prefix this token with
-            anything as the library will do it for you.
+            The authentication token.
 
         Raises
         ------
