@@ -326,6 +326,7 @@ class DiscordWebSocket:
         ws._max_heartbeat_timeout = client._connection.heartbeat_timeout
         ws._user_agent = client.http.user_agent
         ws._super_properties = client.http.super_properties
+        ws._zlib_enabled = client.http.zlib
 
         client._connection._update_references(ws)
 
@@ -380,7 +381,6 @@ class DiscordWebSocket:
                     'activities': [],
                     'afk': False
                 },
-                'compress': False,
                 'client_state': {
                     'guild_hashes': {},
                     'highest_last_message_id': '0',
@@ -389,6 +389,11 @@ class DiscordWebSocket:
                 }
             }
         }
+
+        if self._zlib_enabled == True:
+            payload['d']['compress'] = False
+        if self._zlib_enabled == False:
+            payload['d']['compress'] = True
 
         await self.call_hooks('before_identify', self.shard_id, initial=self._initial_identify)
         await self.send_as_json(payload)
