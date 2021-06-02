@@ -134,10 +134,6 @@ class Client:
         Proxy URL.
     proxy_auth: Optional[:class:`aiohttp.BasicAuth`]
         An object that represents proxy HTTP Basic Authorization.
-    shard_id: Optional[:class:`int`]
-        Integer starting at ``0`` and less than :attr:`.shard_count`.
-    shard_count: Optional[:class:`int`]
-        The total number of shards.
     intents: :class:`Intents`
         The intents that you want to enable for the session. This is a way of
         disabling and enabling certain gateway events from triggering and being sent.
@@ -228,8 +224,6 @@ class Client:
         self.ws = None
         self.loop = asyncio.get_event_loop() if loop is None else loop
         self._listeners = {}
-        self.shard_id = options.get('shard_id')
-        self.shard_count = options.get('shard_count')
 
         connector = options.pop('connector', None)
         proxy = options.pop('proxy', None)
@@ -246,7 +240,6 @@ class Client:
         }
 
         self._connection = self._get_state(**options)
-        self._connection.shard_count = self.shard_count
         self._closed = False
         self._ready = asyncio.Event()
         self._connection._get_websocket = self._get_websocket
@@ -258,7 +251,7 @@ class Client:
 
     # internals
 
-    def _get_websocket(self, guild_id=None, *, shard_id=None):
+    def _get_websocket(self, guild_id=None):
         return self.ws
 
     def _get_state(self, **options):
@@ -482,13 +475,13 @@ class Client:
 
     # hooks
 
-    async def _call_before_identify_hook(self, shard_id, *, initial=False):
+    async def _call_before_identify_hook(self, *, initial=False):
         # This hook is an internal hook that actually calls the public one.
         # It allows the library to have its own hook without stepping on the
         # toes of those who need to override their own hook.
-        await self.before_identify_hook(shard_id, initial=initial)
+        await self.before_identify_hook(initial=initial)
 
-    async def before_identify_hook(self, shard_id, *, initial=False):
+    async def before_identify_hook(self, *, initial=False):
         """|coro|
 
         A hook that is called before IDENTIFYing a session. This is useful
@@ -501,8 +494,6 @@ class Client:
 
         Parameters
         ------------
-        shard_id: :class:`int`
-            The shard ID that requested being IDENTIFY'd
         initial: :class:`bool`
             Whether this IDENTIFY is the first initial IDENTIFY.
         """
@@ -573,7 +564,7 @@ class Client:
             If we should attempt reconnecting, either due to internet
             failure or a specific failure on Discord's part. Certain
             disconnects that lead to bad state will not be handled (such as
-            invalid sharding payloads or bad tokens).
+            bad tokens).
 
         Raises
         -------
@@ -587,7 +578,6 @@ class Client:
         backoff = ExponentialBackoff()
         ws_params = {
             'initial': True,
-            'shard_id': self.shard_id,
         }
         while not self.is_closed():
             try:
@@ -625,12 +615,12 @@ class Client:
                     continue
 
                 # We should only get this when an unhandled close code happens,
-                # such as a clean disconnect (1000) or a bad state (bad token, no sharding, etc)
+                # such as a clean disconnect (1000) or a bad state (bad token, etc)
                 # sometimes, discord sends us 1000 for unknown reasons so we should reconnect
                 # regardless and rely on is_closed instead
                 if isinstance(exc, ConnectionClosed):
                     if exc.code == 4014:
-                        raise PrivilegedIntentsRequired(exc.shard_id) from None
+                        raise PrivilegedIntentsRequired() from None
                     if exc.code != 1000:
                         await self.close()
                         raise

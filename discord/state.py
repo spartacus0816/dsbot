@@ -116,7 +116,6 @@ class ConnectionState:
         self.is_bot = None # HERE
         self.handlers = handlers
         self.hooks = hooks
-        self.shard_count = None
         self._ready_task = None
         self.heartbeat_timeout = options.get('heartbeat_timeout', 60.0)
         self.guild_ready_timeout = options.get('guild_ready_timeout', 2.0)
@@ -290,7 +289,6 @@ class ConnectionState:
             if user.discriminator != '0000':
                 self._users[user_id] = user
             return user
-        
 
     def store_user_no_intents(self, data):
         return User(state=self, data=data)
@@ -441,7 +439,7 @@ class ConnectionState:
                     try:
                         await asyncio.wait_for(future, timeout=5.0)
                     except asyncio.TimeoutError:
-                        log.warning('Shard ID %s timed out waiting for chunks for guild_id %s.', guild.shard_id, guild.id)
+                        log.warning('Bot timed out waiting for chunks for guild_id %s.', guild.id)
 
                     if guild.unavailable is False:
                         self.dispatch('guild_available', guild)
@@ -454,10 +452,6 @@ class ConnectionState:
             except AttributeError:
                 pass # already been deleted somehow
 
-            # call GUILD_SYNC after we're done chunking
-            if not self.is_bot:
-                log.info('Requesting GUILD_SYNC for %s guilds', len(self.guilds))
-                await self.syncer([s.id for s in self.guilds])
         except asyncio.CancelledError:
             pass
         else:
@@ -476,7 +470,7 @@ class ConnectionState:
         self.user = user = ClientUser(state=self, data=data['user'])
         self._users[user.id] = user
         
-        for merged_member_list, guild_data in zip(data['merged_members'], data['guilds']):
+        for merged_member_list, guild_data in zip(data.get('merged_members', []), data.get('guilds', [])):
             guild_data['me'] = merged_member_list
             self._add_guild_from_data(guild_data)
 
@@ -769,6 +763,84 @@ class ConnectionState:
             pass
 
         self.dispatch('member_join', member)
+
+    def parse_guild_member_list_update(self, data):
+        guild = self._get_guild(int(data['guild_id']))
+        if guild is None:
+            log.debug('GUILD_MEMBER_LIST_UPDATE referencing an unknown guild ID: %s. Discarding.', data['guild_id'])
+            return
+
+        ops = data['ops']
+        guild._online_count = data['online_count']
+        guild._member_count = data['member_count']
+
+        for opdata in ops:
+            op = opdata['op']
+            if op == "SYNC":
+                members = [Member(guild=guild, data=member['member'], state=self) for member in [item for item in opdata.get('items', []) if 'member' in item]]
+
+                member_dict = {str(member.id): member for member in members}
+                for presence in [item for item in opdata.get('items', []) if 'member' in item]:
+                    presence = presence['member']['presence']
+                    user = presence['user']
+                    member_id = user['id']
+                    member = member_dict.get(member_id)
+                    member._presence_update(presence, user)
+                    if self.member_cache_flags.online:
+                        guild._add_member(member)
+
+            if op == "INSERT":
+                mdata = opdata['item']['member']
+                user = mdata['user']
+                user_id = int(user['id'])
+
+                member = guild.get_member(user_id)
+                if member is not None:
+                    old_member = Member._copy(member)
+                    member._update(mdata)
+                    user_update = member._update_inner_user(user)
+                    if 'presence' in mdata:
+                        presence = mdata['presence']
+                        user = presence['user']
+                        member_id = user['id']
+                        member._presence_update(presence, user)
+                    if user_update:
+                        self.dispatch('user_update', user_update[0], user_update[1])
+
+                    self.dispatch('member_update', old_member, member)
+                else:
+                    if self.member_cache_flags.online:
+                        member = Member(data=mdata, guild=guild, state=self)
+
+                        # Force an update on the inner user if necessary
+                        user_update = member._update_inner_user(user)
+                        if user_update:
+                            self.dispatch('user_update', user_update[0], user_update[1])
+
+                        guild._add_member(member)
+
+            if op == "UPDATE":
+                mdata = opdata['item']['member']
+                user = mdata['user']
+                user_id = int(user['id'])
+
+                member = guild.get_member(user_id)
+                if member is not None:
+                    old_member = Member._copy(member)
+                    member._update(mdata)
+                    user_update = member._update_inner_user(user)
+                    if 'presence' in mdata:
+                        presence = mdata['presence']
+                        user = presence['user']
+                        member_id = user['id']
+                        member._presence_update(presence, user)
+                    if user_update:
+                        self.dispatch('user_update', user_update[0], user_update[1])
+
+                    self.dispatch('member_update', old_member, member)
+                else:
+                    if self.member_cache_flags.online:
+                        log.debug('GUILD_MEMBER_LIST_UPDATE update referencing an unknown member ID: %s. Discarding.', user_id)
 
     def parse_guild_member_remove(self, data):
         guild = self._get_guild(int(data['guild_id']))
@@ -1139,127 +1211,3 @@ class ConnectionState:
 
     def create_message(self, *, channel, data):
         return Message(state=self, channel=channel, data=data)
-
-class AutoShardedConnectionState(ConnectionState):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._ready_task = None
-        self.shard_ids = ()
-        self.shards_launched = asyncio.Event()
-
-    def _update_message_references(self):
-        for msg in self._messages:
-            if not msg.guild:
-                continue
-
-            new_guild = self._get_guild(msg.guild.id)
-            if new_guild is not None and new_guild is not msg.guild:
-                channel_id = msg.channel.id
-                channel = new_guild.get_channel(channel_id) or Object(id=channel_id)
-                msg._rebind_channel_reference(channel)
-
-    async def chunker(self, guild_id, query='', limit=0, presences=False, *, shard_id=None, nonce=None):
-        ws = self._get_websocket(guild_id, shard_id=shard_id)
-        await ws.request_chunks(guild_id, query=query, limit=limit, presences=presences, nonce=nonce)
-
-    async def _delay_ready(self):
-        await self.shards_launched.wait()
-        processed = []
-        max_concurrency = len(self.shard_ids) * 2
-        current_bucket = []
-        while True:
-            # this snippet of code is basically waiting N seconds
-            # until the last GUILD_CREATE was sent
-            try:
-                guild = await asyncio.wait_for(self._ready_state.get(), timeout=self.guild_ready_timeout)
-            except asyncio.TimeoutError:
-                break
-            else:
-                if self._guild_needs_chunking(guild):
-                    log.debug('Guild ID %d requires chunking, will be done in the background.', guild.id)
-                    if len(current_bucket) >= max_concurrency:
-                        try:
-                            await utils.sane_wait_for(current_bucket, timeout=max_concurrency * 70.0)
-                        except asyncio.TimeoutError:
-                            fmt = 'Shard ID %s failed to wait for chunks from a sub-bucket with length %d'
-                            log.warning(fmt, guild.shard_id, len(current_bucket))
-                        finally:
-                            current_bucket = []
-
-                    # Chunk the guild in the background while we wait for GUILD_CREATE streaming
-                    future = asyncio.ensure_future(self.chunk_guild(guild))
-                    current_bucket.append(future)
-                else:
-                    future = self.loop.create_future()
-                    future.set_result([])
-
-                processed.append((guild, future))
-
-        guilds = sorted(processed, key=lambda g: g[0].shard_id)
-        for shard_id, info in itertools.groupby(guilds, key=lambda g: g[0].shard_id):
-            children, futures = zip(*info)
-            # 110 reqs/minute w/ 1 req/guild plus some buffer
-            timeout = 61 * (len(children) / 110)
-            try:
-                await utils.sane_wait_for(futures, timeout=timeout)
-            except asyncio.TimeoutError:
-                log.warning('Shard ID %s failed to wait for chunks (timeout=%.2f) for %d guilds', shard_id,
-                                                                                                  timeout,
-                                                                                                  len(guilds))
-            for guild in children:
-                if guild.unavailable is False:
-                    self.dispatch('guild_available', guild)
-                else:
-                    self.dispatch('guild_join', guild)
-
-            self.dispatch('shard_ready', shard_id)
-
-        # remove the state
-        try:
-            del self._ready_state
-        except AttributeError:
-            pass # already been deleted somehow
-
-        # regular users cannot shard so we won't worry about it here.
-
-        # clear the current task
-        self._ready_task = None
-
-        # dispatch the event
-        self.call_handlers('ready')
-        self.dispatch('ready')
-
-    def parse_ready(self, data):
-        if not hasattr(self, '_ready_state'):
-            self._ready_state = asyncio.Queue()
-
-        self.user = user = ClientUser(state=self, data=data['user'])
-        self._users[user.id] = user
-
-        for guild_data in data['guilds']:
-            self._add_guild_from_data(guild_data)
-
-        if self._messages:
-            self._update_message_references()
-
-        for pm in data.get('private_channels', []):
-            factory, _ = _channel_factory(pm['type'])
-            self._add_private_channel(factory(me=user, data=pm, state=self))
-
-        self.dispatch('connect')
-        self.dispatch('shard_connect', data['__shard_id__'])
-
-        # Much like clear(), if we have a massive deallocation
-        # then it's better to explicitly call the GC
-        # Note that in the original ready parsing code this was done
-        # implicitly via clear() but in the auto sharded client clearing
-        # the cache would have the consequence of clearing data on other
-        # shards as well.
-        gc.collect()
-
-        if self._ready_task is None:
-            self._ready_task = asyncio.ensure_future(self._delay_ready(), loop=self.loop)
-
-    def parse_resumed(self, data):
-        self.dispatch('resumed')
-        self.dispatch('shard_resumed', data['__shard_id__'])

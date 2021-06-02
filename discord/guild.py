@@ -172,7 +172,7 @@ class Guild(Hashable):
                  'description', 'max_presences', 'max_members', 'max_video_channel_users',
                  'premium_tier', 'premium_subscription_count', '_system_channel_flags',
                  'preferred_locale', 'discovery_splash', '_rules_channel_id',
-                 '_public_updates_channel_id')
+                 '_public_updates_channel_id', '_online_count')
 
     _PREMIUM_GUILD_LIMITS = {
         None: _GuildLimit(emoji=50, bitrate=96e3, filesize=8388608),
@@ -209,7 +209,7 @@ class Guild(Hashable):
 
     def __repr__(self):
         attrs = (
-            'id', 'name', 'shard_id', 'chunked'
+            'id', 'name', 'chunked'
         )
         resolved = ['%s=%r' % (attr, getattr(self, attr)) for attr in attrs]
         resolved.append('member_count=%r' % getattr(self, '_member_count', None))
@@ -304,6 +304,7 @@ class Guild(Hashable):
         self.discovery_splash = guild.get('discovery_splash')
         self._rules_channel_id = utils._get_as_snowflake(guild, 'rules_channel_id')
         self._public_updates_channel_id = utils._get_as_snowflake(guild, 'public_updates_channel_id')
+        self._online_count = guild.get('online_count', None)
 
         cache_online_members = self._state.member_cache_flags.online
         cache_joined = self._state.member_cache_flags.joined
@@ -756,15 +757,13 @@ class Guild(Hashable):
 
     @property
     def member_count(self):
-        """:class:`int`: Returns the true member count regardless of it being loaded fully or not.
-
-        .. warning::
-
-            Due to a Discord limitation, in order for this attribute to remain up-to-date and
-            accurate, it requires :attr:`Intents.members` to be specified.
-
-        """
+        """:class:`int`: Returns the true member count regardless of it being loaded fully or not."""
         return self._member_count
+    
+    @property
+    def online_count(self):
+        """:class:`int`: Returns the number of online member. This only exists after the first GUILD_MEMBER_LIST_UPDATE."""
+        return self._online_count
 
     @property
     def chunked(self):
@@ -780,14 +779,6 @@ class Guild(Hashable):
         if count is None:
             return False
         return count == len(self._members)
-
-    @property
-    def shard_id(self):
-        """:class:`int`: Returns the shard ID for this guild if applicable."""
-        count = self._state.shard_count
-        if count is None:
-            return None
-        return (self.id >> 22) % count
 
     @property
     def created_at(self):

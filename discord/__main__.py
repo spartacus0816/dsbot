@@ -219,7 +219,7 @@ def newbot(parser, args):
 
     try:
         with open(str(new_directory / 'bot.py'), 'w', encoding='utf-8') as fp:
-            base = 'Bot' if not args.sharded else 'AutoShardedBot'
+            base = 'Bot'
             fp.write(bot_template.format(base=base, prefix=args.prefix))
     except OSError as exc:
         parser.error('could not create bot file ({})'.format(exc))
@@ -273,7 +273,6 @@ def add_newbot_args(subparser):
     parser.add_argument('name', help='the bot project name')
     parser.add_argument('directory', help='the directory to place it in (default: .)', nargs='?', default=Path.cwd())
     parser.add_argument('--prefix', help='the bot prefix (default: $)', default='$', metavar='<prefix>')
-    parser.add_argument('--sharded', help='whether to use AutoShardedBot', action='store_true')
     parser.add_argument('--no-git', help='do not create a .gitignore file', action='store_true', dest='no_git')
 
 def add_newcog_args(subparser):
