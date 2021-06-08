@@ -1306,7 +1306,6 @@ class Message(Hashable):
         """
         await self._state.http.clear_reactions(self.channel.id, self.id)
 
-    @utils.deprecated()
     async def ack(self):
         """|coro|
 
