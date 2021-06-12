@@ -790,6 +790,9 @@ class ConnectionState:
                         guild._add_member(member)
 
             if op == "INSERT":
+                if 'member' not in opdata['item']:
+                    return
+
                 mdata = opdata['item']['member']
                 user = mdata['user']
                 user_id = int(user['id'])
