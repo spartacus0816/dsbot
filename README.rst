@@ -36,6 +36,9 @@ Fork Changes
 - Add undocumented Discord API features.
 - Continue fixing ``guild.members``.
 
+**Note:**
+Self-botting/user-botting is against the Discord ToS. This library is a proof of concept and I do not recommend using it. Do so at your own risk.
+
 Key Features
 -------------
 
