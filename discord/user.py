@@ -344,7 +344,6 @@ class ClientUser(BaseUser):
     def __init__(self, *, state, data):
         super().__init__(state=state, data=data)
         self._relationships = {}
-        self.settings = Settings(data=data.get('settings', {}), state=self._state)
 
     def __repr__(self):
         return '<ClientUser id={0.id} name={0.name!r} discriminator={0.discriminator!r}' \

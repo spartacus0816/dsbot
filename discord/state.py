@@ -54,6 +54,7 @@ from . import utils
 from .flags import MemberCacheFlags
 from .object import Object
 from .invite import Invite
+from .settings import Settings
 
 class ChunkRequest:
     def __init__(self, guild_id, loop, resolver, *, cache=True):
@@ -418,19 +419,17 @@ class ConnectionState:
 
         self.clear()
 
+        # Self parsing
+        self.user = user = ClientUser(state=self, data=data['user'])
+        self._users[user.id] = user
+
         # Guild parsing
         for member in data.get('merged_members', []):
             member[0]['user'] = data['user']
-            member[0].pop('user_id')
 
         for merged_member_list, guild_data in zip(data.get('merged_members', []), data.get('guilds', [])):
             guild_data['me'] = merged_member_list
             self._add_guild_from_data(guild_data, from_ready=True)
-
-        # Self parsing
-        data['user']['settings'] = data['user_settings']
-        self.user = user = ClientUser(state=self, data=data['user'])
-        self._users[user.id] = user
 
         # Temp user parsing
         temp_users = {}
@@ -458,6 +457,7 @@ class ConnectionState:
 
         # Extras
         self.preferred_region = data.get('geo_ordered_rtc_regions', [None])[0]
+        user.settings = Settings(data=data.get('user_settings', {}), state=self)
 
         # We're done
         self.call_handlers('connect')
