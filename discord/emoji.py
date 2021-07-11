@@ -200,18 +200,13 @@ class Emoji(_EmojiTag):
         emoji_roles, my_roles = self._roles, self.guild.me._roles
         return any(my_roles.has(role_id) for role_id in emoji_roles)
 
-    async def delete(self, *, reason=None):
+    async def delete(self):
         """|coro|
 
         Deletes the custom emoji.
 
         You must have :attr:`~Permissions.manage_emojis` permission to
         do this.
-
-        Parameters
-        -----------
-        reason: Optional[:class:`str`]
-            The reason for deleting this emoji. Shows up on the audit log.
 
         Raises
         -------
@@ -221,9 +216,9 @@ class Emoji(_EmojiTag):
             An error occurred deleting the emoji.
         """
 
-        await self._state.http.delete_custom_emoji(self.guild.id, self.id, reason=reason)
+        await self._state.http.delete_custom_emoji(self.guild.id, self.id)
 
-    async def edit(self, *, name=None, roles=None, reason=None):
+    async def edit(self, *, name=None):
         r"""|coro|
 
         Edits the custom emoji.
@@ -235,10 +230,6 @@ class Emoji(_EmojiTag):
         -----------
         name: :class:`str`
             The new emoji name.
-        roles: Optional[list[:class:`Role`]]
-            A :class:`list` of :class:`Role`\s that can use this emoji. Leave empty to make it available to everyone.
-        reason: Optional[:class:`str`]
-            The reason for editing this emoji. Shows up on the audit log.
 
         Raises
         -------
@@ -251,4 +242,4 @@ class Emoji(_EmojiTag):
         name = name or self.name
         if roles:
             roles = [role.id for role in roles]
-        await self._state.http.edit_custom_emoji(self.guild.id, self.id, name=name, roles=roles, reason=reason)
+        await self._state.http.edit_custom_emoji(self.guild.id, self.id, name=name)

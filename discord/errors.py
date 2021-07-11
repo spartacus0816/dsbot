@@ -172,21 +172,3 @@ class ConnectionClosed(ClientException):
         # aiohttp doesn't seem to consistently provide close reason
         self.reason = ''
         super().__init__('WebSocket closed with %s' % (self.code))
-
-class PrivilegedIntentsRequired(ClientException):
-    """Exception that's thrown when the gateway is requesting privileged intents
-    but they're not ticked in the developer page yet.
-
-    Go to https://discord.com/developers/applications/ and enable the intents
-    that are required. Currently these are as follows:
-
-    - :attr:`Intents.members`
-    - :attr:`Intents.presences`
-    """
-
-    def __init__(self):
-        msg = 'Connection is requesting privileged intents that have not been explicitly enabled in the ' \
-              'developer portal. It is recommended to go to https://discord.com/developers/applications/ ' \
-              'and explicitly enable the privileged intents within your application\'s page. If this is not ' \
-              'possible, then consider disabling the privileged intents instead.'
-        super().__init__(msg)

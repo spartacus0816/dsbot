@@ -24,8 +24,12 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 """
 
+from asyncio import sleep
+from datetime import datetime, timedelta
 import copy
 from collections import namedtuple
+import logging
+from math import ceil
 
 from . import utils
 from .role import Role
@@ -40,7 +44,7 @@ from .enums import VoiceRegion, ChannelType, try_enum, VerificationLevel, Conten
 from .mixins import Hashable
 from .user import User
 from .invite import Invite
-from .iterators import AuditLogIterator, MemberIterator
+from .iterators import AuditLogIterator
 from .widget import Widget
 from .asset import Asset
 from .flags import SystemChannelFlags
@@ -49,7 +53,7 @@ from .integrations import Integration
 
 BanEntry = namedtuple('BanEntry', 'reason user')
 _GuildLimit = namedtuple('_GuildLimit', 'emoji bitrate filesize')
-
+log = logging.getLogger(__name__)
 
 class Guild(Hashable):
     """Represents a Discord guild.
@@ -172,7 +176,7 @@ class Guild(Hashable):
                  'description', 'max_presences', 'max_members', 'max_video_channel_users',
                  'premium_tier', 'premium_subscription_count', '_system_channel_flags',
                  'preferred_locale', 'discovery_splash', '_rules_channel_id',
-                 '_public_updates_channel_id', '_online_count')
+                 '_public_updates_channel_id', '_online_count', '_subscribing')
 
     _PREMIUM_GUILD_LIMITS = {
         None: _GuildLimit(emoji=50, bitrate=96e3, filesize=8388608),
@@ -188,6 +192,9 @@ class Guild(Hashable):
         self._voice_states = {}
         self._state = state
         self._from_data(data)
+
+        #if state._subscribe_guilds:
+        #state.loop.create_task(self.subscribe())
 
     def _add_channel(self, channel):
         self._channels[channel.id] = channel
@@ -306,25 +313,15 @@ class Guild(Hashable):
         self._public_updates_channel_id = utils._get_as_snowflake(guild, 'public_updates_channel_id')
         self._online_count = guild.get('online_count', None)
 
-        cache_online_members = self._state.member_cache_flags.online
-        cache_joined = self._state.member_cache_flags.joined
-        self_id = self._state.self_id
-        for mdata in guild.get('members', []):
-            member = Member(data=mdata, guild=self, state=state)
-            if cache_joined or (cache_online_members and member.raw_status != 'offline') or member.id == self_id:
-                self._add_member(member)
-                
         for mdata in guild.get('me', []):
             member = Member(data=mdata, guild=self, state=state)
             self._add_member(member)
 
+        self._large = None if member_count is None else member_count >= 250
         self._sync(guild)
-        self._large = None if member_count is None else self._member_count >= 250
 
         self.owner_id = utils._get_as_snowflake(guild, 'owner_id')
         self.afk_channel = self.get_channel(utils._get_as_snowflake(guild, 'afk_channel_id'))
-
-        self._fetch_members(guild)
 
         for obj in guild.get('voice_states', []):
             self._update_voice_state(obj, int(obj['channel_id']))
@@ -349,13 +346,90 @@ class Guild(Hashable):
                 if factory:
                     self._add_channel(factory(guild=self, data=c, state=self._state))
 
-    def _fetch_members(self, data):
-        if 'channels' in data:
-            channel = self.channels[0]
-            perms = Permissions(channel.permissions_for(self.me).value)
-            if perms.manage_guild == True:
-                state = self._state
-                asynception = state.loop.create_task(self.chunk())
+    async def subscribe(self, op_ranges=None):
+        self._subscribing = True
+
+        state = self._state
+        ws = state._get_websocket(self.id)
+
+        async def get_amount():
+            try:
+                amount = int(ceil(self._member_count / 100.0)) * 100
+                return amount
+            except TypeError:
+                return None
+
+        async def get_ranges(amount):
+            if op_ranges:
+                return op_ranges
+            ranges = []
+            for i in range(1, int(amount / 100) + 1):
+                min = i * 100
+                max = min + 99
+                ranges.append([min, max])
+            return ranges
+
+        async def get_channel():
+            for channel in self.channels:
+                perms = channel.permissions_for(self.me)
+                if perms.view_channel == True:
+                    return channel.id
+            return None
+
+        def get_current_subscribe_ranges(number):
+            try:
+                current = [[0, 99], ranges[(number * 2)], ranges[(number * 2) + 1]]
+                return current
+            except:
+                return None
+
+        amount = await get_amount()
+        if not amount:
+            log.warn('Guild %s subscribing failed (could not fetch member count).' % self.id)
+            return
+
+        channel_id = await get_channel()
+        if not channel_id:
+            log.warn('Guild %s subscribing failed (no channels available).' % self.id)
+            return
+
+        ranges = await get_ranges(amount)
+        if not ranges:
+            log.warn('Guild %s subscribing failed (could not fetch ranges).' % self.id)
+            return
+
+        log.debug("Subscribing to guild %s." % self.id)
+        print("Subscribing to guild %s." % self.id)
+        await ws.request_lazy_guild(self.id, typing=True, activities=True, threads=True, channels={str(channel_id): [[0, 99]]})
+        state._current_subscribe_guilds.append(self.id)
+
+        print(f"Waiting for response for ranges [0, 99] (guild {self.id})...")
+        while self.id in state._current_subscribe_guilds:
+            continue
+
+        index = 0
+        while self._subscribing:
+            ranges_to_send = get_current_subscribe_ranges(index)
+            index += 1
+
+            if not ranges_to_send:
+                self._subscribing = False
+                break
+
+            state._current_subscribe_guilds.append(self.id)
+
+            log.debug("Subscribing to %s ranges for guild %s." % (ranges_to_send, self.id))
+            print("Subscribing to %s ranges for guild %s." % (ranges_to_send, self.id))
+            await ws.request_lazy_guild(self.id, typing=True, activities=True, threads=True, channels={str(channel_id): ranges_to_send})
+
+            print(f"Waiting for response for ranges {ranges_to_send} (guild {self.id})...")
+            while self.id in state._current_subscribe_guilds:
+                await sleep(0.05)
+
+            for r in ranges_to_send:
+                if self._online_count in range(r[0], r[1]):
+                    print(f"FINISHED {self.id}!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                    self._subscribing = False
 
     @property
     def channels(self):
@@ -603,19 +677,6 @@ class Guild(Hashable):
         return None
 
     @property
-    def self_role(self):
-        """Optional[:class:`Role`]: Gets the role associated with this client's user, if any.
-
-        .. versionadded:: 1.6
-        """
-        self_id = self._state.self_id
-        for role in self._roles.values():
-            tags = role.tags
-            if tags and tags.bot_id == self_id:
-                return role
-        return None
-
-    @property
     def owner(self):
         """Optional[:class:`Member`]: The member that owns the guild."""
         return self.get_member(self.owner_id)
@@ -762,7 +823,7 @@ class Guild(Hashable):
     
     @property
     def online_count(self):
-        """:class:`int`: Returns the number of online member. This only exists after the first GUILD_MEMBER_LIST_UPDATE."""
+        """:class:`int`: Returns the online member count. This only exists after the first GUILD_MEMBER_LIST_UPDATE."""
         return self._online_count
 
     @property
@@ -779,6 +840,18 @@ class Guild(Hashable):
         if count is None:
             return False
         return count == len(self._members)
+
+    @property
+    def subscribed(self):
+        """:class:`bool`: Returns a boolean indicating if the guild is "subscribed".
+
+        A subscribed guild means that opcode 14s have been sent for every range
+        available. Note that every 100 new members, a new one has to be sent.
+        """
+        try:
+            return not self._subscribing
+        except:
+            return False
 
     @property
     def created_at(self):
@@ -872,7 +945,7 @@ class Guild(Hashable):
         return self._state.http.create_channel(self.id, channel_type.value, name=name, parent_id=parent_id,
                                                permission_overwrites=perms, **options)
 
-    async def create_text_channel(self, name, *, overwrites=None, category=None, reason=None, **options):
+    async def create_text_channel(self, name, *, overwrites=None, category=None, **options):
         """|coro|
 
         Creates a :class:`TextChannel` for the guild.
@@ -950,14 +1023,14 @@ class Guild(Hashable):
         :class:`TextChannel`
             The channel that was just created.
         """
-        data = await self._create_channel(name, overwrites, ChannelType.text, category, reason=reason, **options)
+        data = await self._create_channel(name, overwrites, ChannelType.text, category, **options)
         channel = TextChannel(state=self._state, guild=self, data=data)
 
         # temporarily add to the cache
         self._channels[channel.id] = channel
         return channel
 
-    async def create_voice_channel(self, name, *, overwrites=None, category=None, reason=None, **options):
+    async def create_voice_channel(self, name, *, overwrites=None, category=None, **options):
         """|coro|
 
         This is similar to :meth:`create_text_channel` except makes a :class:`VoiceChannel` instead, in addition
@@ -989,14 +1062,14 @@ class Guild(Hashable):
         :class:`VoiceChannel`
             The channel that was just created.
         """
-        data = await self._create_channel(name, overwrites, ChannelType.voice, category, reason=reason, **options)
+        data = await self._create_channel(name, overwrites, ChannelType.voice, category, **options)
         channel = VoiceChannel(state=self._state, guild=self, data=data)
 
         # temporarily add to the cache
         self._channels[channel.id] = channel
         return channel
 
-    async def create_stage_channel(self, name, *, topic=None, category=None, overwrites=None, reason=None, position=None):
+    async def create_stage_channel(self, name, *, topic=None, category=None, overwrites=None, position=None):
         """|coro|
 
         This is similar to :meth:`create_text_channel` except makes a :class:`StageChannel` instead.
@@ -1021,14 +1094,14 @@ class Guild(Hashable):
         :class:`StageChannel`
             The channel that was just created.
         """
-        data = await self._create_channel(name, overwrites, ChannelType.stage_voice, category, reason=reason, position=position, topic=topic)
+        data = await self._create_channel(name, overwrites, ChannelType.stage_voice, category, position=position, topic=topic)
         channel = StageChannel(state=self._state, guild=self, data=data)
 
         # temporarily add to the cache
         self._channels[channel.id] = channel
         return channel
 
-    async def create_category(self, name, *, overwrites=None, reason=None, position=None):
+    async def create_category(self, name, *, overwrites=None, position=None):
         """|coro|
 
         Same as :meth:`create_text_channel` except makes a :class:`CategoryChannel` instead.
@@ -1052,7 +1125,7 @@ class Guild(Hashable):
         :class:`CategoryChannel`
             The channel that was just created.
         """
-        data = await self._create_channel(name, overwrites, ChannelType.category, reason=reason, position=position)
+        data = await self._create_channel(name, overwrites, ChannelType.category, position=position)
         channel = CategoryChannel(state=self._state, guild=self, data=data)
 
         # temporarily add to the cache
@@ -1068,7 +1141,7 @@ class Guild(Hashable):
 
         .. note::
 
-            You cannot leave the guild that you own, you must delete it instead
+            You cannot leave a guild that you own, you must delete it instead
             via :meth:`delete`.
 
         Raises
@@ -1094,7 +1167,7 @@ class Guild(Hashable):
 
         await self._state.http.delete_guild(self.id)
 
-    async def edit(self, *, reason=None, **fields):
+    async def edit(self, **fields):
         """|coro|
 
         Edits the guild.
@@ -1156,8 +1229,9 @@ class Guild(Hashable):
             The new channel that is used for public updates from Discord. This is only available to
             guilds that contain ``PUBLIC`` in :attr:`Guild.features`. Could be ``None`` for no
             public updates channel.
-        reason: Optional[:class:`str`]
-            The reason for editing this guild. Shows up on the audit log.
+        features: List[:class:`str`]
+            The guild features. This is used to enable community. Make sure to pass the full list of
+            features (including the ones the guild already has).
 
         Raises
         -------
@@ -1172,6 +1246,7 @@ class Guild(Hashable):
         """
 
         http = self._state.http
+
         try:
             icon_bytes = fields['icon']
         except KeyError:
@@ -1197,7 +1272,7 @@ class Guild(Hashable):
         except KeyError:
             pass
         else:
-            await http.change_vanity_code(self.id, vanity_code, reason=reason)
+            await http.change_vanity_code(self.id, vanity_code)
 
         try:
             splash_bytes = fields['splash']
@@ -1213,15 +1288,24 @@ class Guild(Hashable):
         fields['banner'] = banner
         fields['splash'] = splash
 
-        default_message_notifications = fields.get('default_notifications', self.default_notifications)
-        if not isinstance(default_message_notifications, NotificationLevel):
-            raise InvalidArgument('default_notifications field must be of type NotificationLevel')
-        fields['default_message_notifications'] = default_message_notifications.value
+        fields['name'] = fields.get('name', self.name)
+        fields['description'] = fields.get('description', self.description)
+        fields['afk_timeout'] = fields.get('afk_timeout', self.afk_timeout)
+        fields['features'] = fields.get('features', self.features)
+
+        try:
+            default_message_notifications = fields.pop('default_notifications')
+        except KeyError:
+            default_message_notifications = self.default_notifications
+        else:
+            if not isinstance(default_message_notifications, NotificationLevel):
+                raise InvalidArgument('default_notifications field must be of type NotificationLevel')
+            fields['default_message_notifications'] = default_message_notifications.value
 
         try:
             afk_channel = fields.pop('afk_channel')
         except KeyError:
-            pass
+            afk_channel = self.afk_channel
         else:
             if afk_channel is None:
                 fields['afk_channel_id'] = afk_channel
@@ -1231,7 +1315,7 @@ class Guild(Hashable):
         try:
             system_channel = fields.pop('system_channel')
         except KeyError:
-            pass
+            system_channel = self.system_channel
         else:
             if system_channel is None:
                 fields['system_channel_id'] = system_channel
@@ -1246,6 +1330,8 @@ class Guild(Hashable):
 
         if 'region' in fields:
             fields['region'] = str(fields['region'])
+        else:
+            fields['region'] = str(self.region)
 
         level = fields.get('verification_level', self.verification_level)
         if not isinstance(level, VerificationLevel):
@@ -1278,13 +1364,14 @@ class Guild(Hashable):
         try:
             public_updates_channel = fields.pop('public_updates_channel')
         except KeyError:
-            pass
+            public_updates_channel = self.public_updates_channel
         else:
             if public_updates_channel is None:
                 fields['public_updates_channel_id'] = public_updates_channel
             else:
                 fields['public_updates_channel_id'] = public_updates_channel.id
-        await http.edit_guild(self.id, reason=reason, **fields)
+
+        await http.edit_guild(self.id, **fields)
 
     async def fetch_channels(self):
         """|coro|
@@ -1321,58 +1408,6 @@ class Guild(Hashable):
 
         return [convert(d) for d in data]
 
-    def fetch_members(self, *, limit=1000, after=None):
-        """Retrieves an :class:`.AsyncIterator` that enables receiving the guild's members. In order to use this,
-        :meth:`Intents.members` must be enabled.
-
-        .. note::
-
-            This method is an API call. For general usage, consider :attr:`members` instead.
-
-        .. versionadded:: 1.3
-
-        All parameters are optional.
-
-        Parameters
-        ----------
-        limit: Optional[:class:`int`]
-            The number of members to retrieve. Defaults to 1000.
-            Pass ``None`` to fetch all members. Note that this is potentially slow.
-        after: Optional[Union[:class:`.abc.Snowflake`, :class:`datetime.datetime`]]
-            Retrieve members after this date or object.
-            If a date is provided it must be a timezone-naive datetime representing UTC time.
-
-        Raises
-        ------
-        ClientException
-            The members intent is not enabled.
-        HTTPException
-            Getting the members failed.
-
-        Yields
-        ------
-        :class:`.Member`
-            The member with the member data parsed.
-
-        Examples
-        --------
-
-        Usage ::
-
-            async for member in guild.fetch_members(limit=150):
-                print(member.name)
-
-        Flattening into a list ::
-
-            members = await guild.fetch_members(limit=150).flatten()
-            # members is now a list of Member...
-        """
-
-        if not self._state._intents.members:
-            raise ClientException('Intents.members must be enabled to use this.')
-
-        return MemberIterator(self, limit=limit, after=after)
-
     async def fetch_member(self, member_id):
         """|coro|
 
@@ -1380,7 +1415,7 @@ class Guild(Hashable):
 
         .. note::
 
-            This method is an API call. If you have :attr:`Intents.members` and member cache enabled, consider :meth:`get_member` instead.
+            This method is an API call. If you have member cache enabled, consider :meth:`get_member` instead.
 
         Parameters
         -----------
@@ -1429,7 +1464,7 @@ class Guild(Hashable):
         :class:`BanEntry`
             The :class:`BanEntry` object for the specified user.
         """
-        data = await self._state.http.get_ban(user.id, self.id)
+        data = await self._state.http.get_ban(self.id, user.id)
         return BanEntry(
             user=User(state=self._state, data=data['user']),
             reason=data['reason']
@@ -1461,7 +1496,7 @@ class Guild(Hashable):
                          reason=e['reason'])
                 for e in data]
 
-    async def prune_members(self, *, days, compute_prune_count=True, roles=None, reason=None):
+    async def prune_members(self, *, days, compute_prune_count=True, roles=None):
         r"""|coro|
 
         Prunes the guild from its inactive members.
@@ -1484,8 +1519,6 @@ class Guild(Hashable):
         -----------
         days: :class:`int`
             The number of days before counting as inactive.
-        reason: Optional[:class:`str`]
-            The reason for doing this action. Shows up on the audit log.
         compute_prune_count: :class:`bool`
             Whether to compute the prune count. This defaults to ``True``
             which makes it prone to timeouts in very large guilds. In order
@@ -1517,7 +1550,7 @@ class Guild(Hashable):
         if roles:
             roles = [str(role.id) for role in roles]
 
-        data = await self._state.http.prune_members(self.id, days, compute_prune_count=compute_prune_count, roles=roles, reason=reason)
+        data = await self._state.http.prune_members(self.id, days, compute_prune_count=compute_prune_count, roles=roles)
         return data['pruned']
 
     async def templates(self):
@@ -1770,7 +1803,7 @@ class Guild(Hashable):
         data = await self._state.http.get_custom_emoji(self.id, emoji_id)
         return Emoji(guild=self, state=self._state, data=data)
 
-    async def create_custom_emoji(self, *, name, image, roles=None, reason=None):
+    async def create_custom_emoji(self, *, name, image):
         r"""|coro|
 
         Creates a custom :class:`Emoji` for the guild.
@@ -1788,10 +1821,6 @@ class Guild(Hashable):
         image: :class:`bytes`
             The :term:`py:bytes-like object` representing the image data to use.
             Only JPG, PNG and GIF images are supported.
-        roles: Optional[List[:class:`Role`]]
-            A :class:`list` of :class:`Role`\s that can use this emoji. Leave empty to make it available to everyone.
-        reason: Optional[:class:`str`]
-            The reason for creating this emoji. Shows up on the audit log.
 
         Raises
         -------
@@ -1809,7 +1838,7 @@ class Guild(Hashable):
         img = utils._bytes_to_base64_data(image)
         if roles:
             roles = [role.id for role in roles]
-        data = await self._state.http.create_custom_emoji(self.id, name, img, roles=roles, reason=reason)
+        data = await self._state.http.create_custom_emoji(self.id, name, img)
         return self._state.store_emoji(self, data)
 
     async def fetch_roles(self):
@@ -1836,7 +1865,7 @@ class Guild(Hashable):
         data = await self._state.http.get_roles(self.id)
         return [Role(guild=self, state=self._state, data=d) for d in data]
 
-    async def create_role(self, *, reason=None, **fields):
+    async def create_role(self, **fields):
         """|coro|
 
         Creates a :class:`Role` for the guild.
@@ -1864,8 +1893,6 @@ class Guild(Hashable):
         mentionable: :class:`bool`
             Indicates if the role should be mentionable by others.
             Defaults to ``False``.
-        reason: Optional[:class:`str`]
-            The reason for creating this role. Shows up on the audit log.
 
         Raises
         -------
@@ -1903,13 +1930,13 @@ class Guild(Hashable):
             if key not in valid_keys:
                 raise InvalidArgument('%r is not a valid field.' % key)
 
-        data = await self._state.http.create_role(self.id, reason=reason, **fields)
+        data = await self._state.http.create_role(self.id, **fields)
         role = Role(guild=self, data=data, state=self._state)
 
         # TODO: add to cache
         return role
 
-    async def edit_role_positions(self, positions, *, reason=None):
+    async def edit_role_positions(self, positions):
         """|coro|
 
         Bulk edits a list of :class:`Role` in the guild.
@@ -1936,8 +1963,6 @@ class Guild(Hashable):
         positions
             A :class:`dict` of :class:`Role` to :class:`int` to change the positions
             of each given role.
-        reason: Optional[:class:`str`]
-            The reason for editing the role positions. Shows up on the audit log.
 
         Raises
         -------
@@ -1966,7 +1991,7 @@ class Guild(Hashable):
 
             role_positions.append(payload)
 
-        data = await self._state.http.move_role_position(self.id, role_positions, reason=reason)
+        data = await self._state.http.move_role_position(self.id, role_positions)
         roles = []
         for d in data:
             role = Role(guild=self, data=d, state=self._state)
@@ -1999,7 +2024,7 @@ class Guild(Hashable):
         HTTPException
             Kicking failed.
         """
-        await self._state.http.kick(user.id, self.id, reason=reason)
+        await self._state.http.kick(self.id, user.id, reason=reason)
 
     async def ban(self, user, *, reason=None, delete_message_days=1):
         """|coro|
@@ -2028,9 +2053,9 @@ class Guild(Hashable):
         HTTPException
             Banning failed.
         """
-        await self._state.http.ban(user.id, self.id, delete_message_days, reason=reason)
+        await self._state.http.ban(self.id, user.id, delete_message_days, reason=reason)
 
-    async def unban(self, user, *, reason=None):
+    async def unban(self, user):
         """|coro|
 
         Unbans a user from the guild.
@@ -2054,7 +2079,7 @@ class Guild(Hashable):
         HTTPException
             Unbanning failed.
         """
-        await self._state.http.unban(user.id, self.id, reason=reason)
+        await self._state.http.unban(self.id, user.id)
 
     async def vanity_invite(self):
         """|coro|
@@ -2079,12 +2104,14 @@ class Guild(Hashable):
             The special vanity invite.
         """
 
+        state = self._state
+
         # we start with { code: abc }
-        payload = await self._state.http.get_vanity_code(self.id)
+        payload = await state.http.get_vanity_code(self.id)
 
         # get the vanity URL channel since default channels aren't
         # reliable or a thing anymore
-        data = await self._state.http.get_invite(payload['code'])
+        data = await state.http.get_invite(payload['code'])
 
         payload['guild'] = self
         payload['channel'] = self.get_channel(int(data['channel']['id']))
@@ -2092,30 +2119,20 @@ class Guild(Hashable):
         payload['temporary'] = False
         payload['max_uses'] = 0
         payload['max_age'] = 0
-        return Invite(state=self._state, data=payload)
+        return Invite(state=state, data=payload)
 
-    @utils.deprecated()
     def ack(self):
         """|coro|
 
         Marks every message in this guild as read.
 
-        The user must not be a bot user.
-
-        .. deprecated:: 1.7
-
         Raises
         -------
         HTTPException
             Acking failed.
-        ClientException
-            You must not be a bot user.
         """
 
-        state = self._state
-        if state.is_bot:
-            raise ClientException('Must not be a bot account to ack messages.')
-        return state.http.ack_guild(self.id)
+        return self._state.http.ack_guild(self.id)
 
     def audit_logs(self, *, limit=100, before=None, after=None, oldest_first=None, user=None, action=None):
         """Returns an :class:`AsyncIterator` that enables receiving the guild's audit logs.
@@ -2218,15 +2235,10 @@ class Guild(Hashable):
         -----------
         cache: :class:`bool`
             Whether to cache the members as well.
-
-        Raises
-        -------
-        ClientException
-            The members intent is not enabled.
         """
 
-        if not self._state._intents.members:
-            raise ClientException('Intents.members must be enabled to use this.')
+        if not self.me.guild_permissions.manage_guild:
+            raise ClientException('`manage_guild` permission is required to use this.')
 
         if not self._state.is_guild_evicted(self):
             return await self._state.chunk_guild(self, cache=cache)
@@ -2269,8 +2281,6 @@ class Guild(Hashable):
             The query timed out waiting for the members.
         ValueError
             Invalid parameters were passed to the function
-        ClientException
-            The presences intent is not enabled.
 
         Returns
         --------
@@ -2278,26 +2288,16 @@ class Guild(Hashable):
             The list of members that have matched the query.
         """
 
-        if presences and not self._state._intents.presences:
-            raise ClientException('Intents.presences must be enabled to use this.')
+        if not query and not user_ids:
+            raise ValueError('Must pass either query or user_ids')
 
-        if query is None:
-            if query == '':
-                raise ValueError('Cannot pass empty query string.')
-
-            if user_ids is None:
-                raise ValueError('Must pass either query or user_ids')
-
-        if user_ids is not None and query is not None:
+        if user_ids and query:
             raise ValueError('Cannot pass both query and user_ids')
-
-        if user_ids is not None and not user_ids:
-            raise ValueError('user_ids must contain at least 1 value')
 
         limit = min(100, limit or 5)
         return await self._state.query_members(self, query=query, limit=limit, user_ids=user_ids, presences=presences, cache=cache)
 
-    async def change_voice_state(self, *, channel, self_mute=False, self_deaf=False):
+    async def change_voice_state(self, *, channel, self_mute=False, self_deaf=False, self_video=None, preferred_region=''):
         """|coro|
 
         Changes client's voice state in the guild.
@@ -2312,7 +2312,55 @@ class Guild(Hashable):
             Indicates if the client should be self-muted.
         self_deaf: :class:`bool`
             Indicates if the client should be self-deafened.
+        self_video :class:`bool`
+            Indicates if the client is screen-sharing (do not use).
+
+            .. versionadded:: 1.9
         """
-        ws = self._state._get_websocket(self.id)
+
+        state = self._state
+        ws = state._get_websocket(self.id)
         channel_id = channel.id if channel else None
-        await ws.voice_state(self.id, channel_id, self_mute, self_deaf)
+
+        if channel_id and preferred_region == '':
+            preferred_region = state.preferred_region
+
+        await ws.voice_state(self.id, channel_id, self_mute, self_deaf, self_video, preferred_region=preferred_region)
+
+    async def mute(self, *, duration=None):
+        """|coro|
+
+        Mutes the guild.
+
+        Parameters
+        -----------
+        duration: Optional[:class:`int`]
+            The duration (in hours) of the mute. Defaults to
+            ``None`` for an indefinite mute.
+
+        .. versionadded:: 1.9
+
+        """
+
+        fields = {
+            'muted': True
+        }
+
+        if duration is not None:
+            fields['mute_config'] = mute_config = dict()
+            mute_config['selected_time_window'] = duration * 3600
+            end_time = datetime.utcnow() + timedelta(hours=duration)
+            mute_config['end_time'] = end_time.isoformat()
+
+        await self._state.http.edit_guild_settings(self.id, **fields)
+
+    async def unmute(self):
+        """|coro|
+
+        Unmutes the guild.
+
+        .. versionadded:: 1.9
+
+        """
+
+        await self._state.http.edit_guild_settings(self.id, muted=False)

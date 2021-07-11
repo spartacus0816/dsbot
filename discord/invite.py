@@ -23,6 +23,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 """
+from datetime import datetime
 
 from .asset import Asset
 from .utils import parse_time, snowflake_time, _get_as_snowflake
@@ -252,6 +253,8 @@ class Invite(Hashable):
     +------------------------------------+----------------------------------------------------------+
     | :attr:`approximate_presence_count` | :meth:`Client.fetch_invite`                              |
     +------------------------------------+----------------------------------------------------------+
+    | :attr:`expires_at`                 | :meth:`Client.fetch_invite`                              |
+    +------------------------------------+----------------------------------------------------------+
 
     If it's not in the table above then it is available by all methods.
 
@@ -285,17 +288,22 @@ class Invite(Hashable):
         This includes idle, dnd, online, and invisible members. Offline members are excluded.
     channel: Union[:class:`abc.GuildChannel`, :class:`Object`, :class:`PartialInviteChannel`]
         The channel the invite is for.
+    expires_at: :class:`datetime.datetime`
+        A datetime object denoting when the invite expires.
+        A value of ``0`` indicates that it doesn't expire.
     """
 
     __slots__ = ('max_age', 'code', 'guild', 'revoked', 'created_at', 'uses',
                  'temporary', 'max_uses', 'inviter', 'channel', '_state',
-                 'approximate_member_count', 'approximate_presence_count' )
+                 'approximate_member_count', 'approximate_presence_count', 'expires_at')
 
     BASE = 'https://discord.gg'
 
     def __init__(self, *, state, data):
         self._state = state
+
         self.max_age = data.get('max_age')
+        self.expires_at = parse_time(data.get('expires_at'))
         self.code = data.get('code')
         self.guild = data.get('guild')
         self.revoked = data.get('revoked')
@@ -374,17 +382,40 @@ class Invite(Hashable):
         """:class:`str`: A property that retrieves the invite URL."""
         return self.BASE + '/' + self.code
 
-    async def delete(self, *, reason=None):
+    async def use(self):
+        """|coro|
+
+        Uses the invite (joins the guild)
+
+        Raises
+        ------
+        :exc:`.HTTPException`
+            Joining the guild failed.
+        :exc:`.InvalidArgument`
+            Tried to join a guild you're already in.
+
+        Returns
+        -------
+        :class:`.Guild`
+            The guild joined. This is not the same guild that is
+            added to cache.
+        """
+
+        state = self._state
+        data = await state.http.join_guild(self.code, guild_id=self.guild.id, channel_id=self.channel.id, channel_type=self.channel.type.value)
+
+        new_member = data.get('new_member', False)
+        if not new_member:
+            raise InvalidArgument('Tried to join a guild you\'re already in.')
+
+        return Guild(data=data['guild'], state=state)
+
+    async def delete(self):
         """|coro|
 
         Revokes the instant invite.
 
         You must have the :attr:`~Permissions.manage_channels` permission to do this.
-
-        Parameters
-        -----------
-        reason: Optional[:class:`str`]
-            The reason for deleting this invite. Shows up on the audit log.
 
         Raises
         -------
@@ -396,4 +427,4 @@ class Invite(Hashable):
             Revoking the invite failed.
         """
 
-        await self._state.http.delete_invite(self.code, reason=reason)
+        await self._state.http.delete_invite(self.code)

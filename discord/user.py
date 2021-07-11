@@ -29,14 +29,17 @@ from collections import namedtuple
 import discord.abc
 from .flags import PublicUserFlags
 from .utils import snowflake_time, _bytes_to_base64_data, parse_time
-from .enums import DefaultAvatar, RelationshipType, UserFlags, HypeSquadHouse, PremiumType, try_enum
-from .errors import ClientException
+from .enums import FriendFlags, StickerAnimationOptions, Theme, UserContentFilter, RelationshipAction, RelationshipType, UserFlags, HypeSquadHouse, PremiumType, try_enum
+from .errors import ClientException, NotFound
 from .colour import Colour
 from .asset import Asset
-from .utils import deprecated
+from .settings import Settings
 
-class Profile(namedtuple('Profile', 'flags user mutual_guilds connected_accounts premium_since')):
+class Profile(namedtuple('Profile', 'flags user mutual_guilds connected_accounts premium_since bio')):
     __slots__ = ()
+
+    def mutual_friends(self):
+        return self.user.mutual_friends()
 
     @property
     def nitro(self):
@@ -305,6 +308,8 @@ class ClientUser(BaseUser):
         The user's unique ID.
     discriminator: :class:`str`
         The user's discriminator. This is given when the username has conflicts.
+    bio: :class:`str`
+        The user's 'about me' field.
     avatar: Optional[:class:`str`]
         The avatar hash the user has. Could be ``None``.
     bot: :class:`bool`
@@ -317,29 +322,29 @@ class ClientUser(BaseUser):
     verified: :class:`bool`
         Specifies if the user's email is verified.
     email: Optional[:class:`str`]
-        The email the user used when registering.
+        The email of the user.
+    phone: Optional[:class:`int`]
+        The phone number of the user.
 
     locale: Optional[:class:`str`]
         The IETF language tag used to identify the language the user is using.
     mfa_enabled: :class:`bool`
         Specifies if the user has MFA turned on and working.
     premium: :class:`bool`
-        Specifies if the user is a premium user (e.g. has Discord Nitro).
-
-        .. deprecated:: 1.7
-
+        Specifies if the user is a premium user (i.e. has Discord Nitro).
     premium_type: Optional[:class:`PremiumType`]
-        Specifies the type of premium a user has (e.g. Nitro or Nitro Classic). Could be None if the user is not premium.
-
-        .. deprecated:: 1.7
+        Specifies the type of premium a user has (i.e. Nitro or Nitro Classic). Could be None if the user is not premium.
+    settings: :class:`Settings`
+        The user's client settings.
     """
     __slots__ = BaseUser.__slots__ + \
-                ('email', 'locale', '_flags', 'verified', 'mfa_enabled',
+                ('settings', 'bio', 'phone', 'email', 'locale', '_flags', 'verified', 'mfa_enabled',
                  'premium', 'premium_type', '_relationships', '__weakref__')
 
     def __init__(self, *, state, data):
         super().__init__(state=state, data=data)
         self._relationships = {}
+        self.settings = Settings(data=data.get('settings', {}), state=self._state)
 
     def __repr__(self):
         return '<ClientUser id={0.id} name={0.name!r} discriminator={0.discriminator!r}' \
@@ -347,14 +352,15 @@ class ClientUser(BaseUser):
 
     def _update(self, data):
         super()._update(data)
-        # There's actually an Optional[str] phone field as well but I won't use it
         self.verified = data.get('verified', False)
         self.email = data.get('email')
+        self.phone = data.get('phone')
         self.locale = data.get('locale')
         self._flags = data.get('flags', 0)
         self.mfa_enabled = data.get('mfa_enabled', False)
         self.premium = data.get('premium', False)
         self.premium_type = try_enum(PremiumType, data.get('premium_type', None))
+        self.bio = data.get('bio')
 
     def get_relationship(self, user_id):
         """Retrieves the :class:`Relationship` if applicable.
@@ -404,22 +410,30 @@ class ClientUser(BaseUser):
         -----------
         password: :class:`str`
             The current password for the client's account.
-            Only applicable to user accounts.
+            Required for everything except avatar, banner(_color), and bio.
         new_password: :class:`str`
             The new password you wish to change to.
-            Only applicable to user accounts.
         email: :class:`str`
             The new email you wish to change to.
-            Only applicable to user accounts.
         house: Optional[:class:`HypeSquadHouse`]
             The hypesquad house you wish to change to.
             Could be ``None`` to leave the current house.
-            Only applicable to user accounts.
         username: :class:`str`
             The new username you wish to change to.
+        discriminator: :class:`int`
+            The new discriminator you wish to change to.
+            Can only be used if you have Nitro.
         avatar: :class:`bytes`
             A :term:`py:bytes-like object` representing the image to upload.
             Could be ``None`` to denote no avatar.
+        banner: :class:`bytes`
+            A :term:`py:bytes-like object` representing the image to upload.
+            Could be ``None`` to denote no banner.
+        banner_color: :class:`Colour`
+            A :class:`Colour` object of the color you want to set your profile to.
+        bio: :class:`str`
+            Your 'about me' section.
+            Could be ``None`` to represent no 'about me'.
 
         Raises
         ------
@@ -432,32 +446,56 @@ class ClientUser(BaseUser):
             House field was not a HypeSquadHouse.
         """
 
-        try:
+        args = {}
+
+        if any(option in fields for option in ('new_password', 'email', 'username', 'discriminator')):
+            password = fields.get('password')
+            if password is None:
+                raise ClientException('Password is required')
+            args['password'] = password
+
+        if 'avatar' in fields:
             avatar_bytes = fields['avatar']
-        except KeyError:
-            avatar = self.avatar
-        else:
             if avatar_bytes is not None:
-                avatar = _bytes_to_base64_data(avatar_bytes)
+                args['avatar'] = _bytes_to_base64_data(avatar_bytes)
             else:
-                avatar = None
+                args['avatar'] = None
 
-        not_bot_account = not self.bot
-        password = fields.get('password')
-        if not_bot_account and password is None:
-            raise ClientException('Password is required')
+        if 'banner' in fields:
+            banner_bytes = fields['banner']
+            if banner_bytes is not None:
+                args['banner'] = _bytes_to_base64_data(banner_bytes)
+            else:
+                args['banner'] = None
 
-        args = {
-            'password': password,
-            'username': fields.get('username', self.name),
-            'avatar': avatar
-        }
+        if 'banner_color' or 'banner_colour' in fields:
+            banner_color = fields.get('banner_color', None)
+            banner_color = fields.get('banner_colour', banner_color)
+            if banner_color is None:
+                args['banner_color'] = banner_color
+            elif not isinstance(house, Colour):
+                raise ClientException('`house` parameter was not a HypeSquadHouse')
+            else:
+                args['banner_color'] = banner_color.value
 
-        if not_bot_account:
-            args['email'] = fields.get('email', self.email)
+        if 'email' in fields:
+            args['email'] = fields['email']
 
-            if 'new_password' in fields:
-                args['new_password'] = fields['new_password']
+        if 'username' in fields:
+            args['username'] = fields['username']
+
+        if 'discriminator' in fields:
+            args['discriminator'] = fields['discriminator']
+
+        if 'new_password' in fields:
+            args['new_password'] = fields['new_password']
+
+        if 'bio' in fields:
+            bio = fields['bio']
+            if bio is not None:
+                args['bio'] = bio
+            else:
+                args['bio'] = ''
 
         http = self._state.http
 
@@ -473,12 +511,11 @@ class ClientUser(BaseUser):
             await http.change_hypesquad_house(value)
 
         data = await http.edit_profile(**args)
-        if not_bot_account:
-            self.email = data['email']
-            try:
-                http._token(data['token'], bot=False)
-            except KeyError:
-                pass
+        self.email = data['email']
+        try:
+            http._token(data['token'])
+        except KeyError:
+            pass
 
         self._update(data)
 
@@ -515,7 +552,7 @@ class ClientUser(BaseUser):
             raise ClientException('You must have two or more recipients to create a group.')
 
         users = [str(u.id) for u in recipients]
-        data = await self._state.http.start_group(self.id, users)
+        data = await self._state.http.start_group(users)
         return GroupChannel(me=self, data=data, state=self._state)
 
     async def edit_settings(self, **kwargs):
@@ -524,17 +561,21 @@ class ClientUser(BaseUser):
         Edits the client user's settings.
 
         Parameters
-        -------
+        ----------
         afk_timeout: :class:`int`
             How long (in seconds) the user needs to be AFK until Discord
             sends push notifications to your mobile device.
+        allow_accessibility_detection: :class:`bool`
+            Whether or not to allow Discord to track screen reader usage.
         animate_emojis: :class:`bool`
             Whether or not to animate emojis in the chat.
+        animate_stickers: :class:`StickerAnimationOptions`
+            Whether or not to animate stickers in the chat.
+        contact_sync_enabled: :class:`bool`
+            Whether or not to enable the contact sync on Discord mobile.
         convert_emoticons: :class:`bool`
             Whether or not to automatically convert emoticons into emojis.
             e.g. :-) -> 😃
-        custom_status: :class:`dict`
-            Sent when setting a custom status with :meth:change_presence.
         default_guilds_restricted: :class:`bool`
             Whether or not to automatically disable DMs between you and
             members of new guilds you join.
@@ -565,6 +606,9 @@ class ClientUser(BaseUser):
             of the Discord client.
         message_display_compact: :class:`bool`
             Whether or not to use the compact Discord display mode.
+        native_phone_integration_enabled: :class:`bool`
+            Whether or not to enable the new Discord mobile phone number friend
+            requesting features.
         render_embeds: :class:`bool`
             Whether or not to render embeds that are sent in the chat.
         render_reactions: :class:`bool`
@@ -573,19 +617,19 @@ class ClientUser(BaseUser):
             A list of guilds that you will not receive DMs from.
         show_current_game: :class:`bool`
             Whether or not to display the game that you are currently playing.
-        status: :class:`Status`
-            The clients status that is shown to others.
+        stream_notifications_enabled: :class:`bool`
+            Unknown.
         theme: :class:`Theme`
             The theme of the Discord UI.
         timezone_offset: :class:`int`
             The timezone offset to use.
+        view_nsfw_guilds: :class:`bool`
+            Whether or not to show NSFW guilds on iOS.
 
         Raises
         -------
         HTTPException
             Editing the settings failed.
-        Forbidden
-            The client is a bot user and not a user account.
 
         Returns
         -------
@@ -596,7 +640,11 @@ class ClientUser(BaseUser):
 
         content_filter = kwargs.pop('explicit_content_filter', None)
         if content_filter:
-            payload.update({'explicit_content_filter': content_filter.value})
+            payload.update({'explicit_content_filter': content_filter.to_dict()})
+
+        animate_stickers = kwargs.pop('animate_stickers', None)
+        if animate_stickers:
+            payload.update({'animate_stickers': animate_stickers.value})
 
         friend_flags = kwargs.pop('friend_source_flags', None)
         if friend_flags:
@@ -622,17 +670,35 @@ class ClientUser(BaseUser):
         if theme:
             payload.update({'theme': theme.value})
 
-        custom_status = kwargs.pop('custom_status', None)
-        if custom_status != None:
-            if custom_status:
-                payload.update({'custom_status': custom_status})
-            else:
-                payload.update({'custom_status': {}})
-
         payload.update(kwargs)
 
         data = await self._state.http.edit_settings(**payload)
-        return data
+        self.settings = settings = Settings(data=data, state=self._state)
+        return settings
+
+    def disable_account(self):
+        """|coro|
+
+        Disables the client account.
+
+        Raises
+        -------
+        HTTPException
+            Disabling the account failed.
+        """
+        return self._state.http.disable_account()
+    
+    def delete_account(self):
+        """|coro|
+
+        Deletes the client account.
+
+        Raises
+        -------
+        HTTPException
+            Deleting the account failed.
+        """
+        return self._state.http.delete_account()
 
 class User(BaseUser, discord.abc.Messageable):
     """Represents a Discord user.
@@ -689,17 +755,39 @@ class User(BaseUser, discord.abc.Messageable):
         """
         return self._state._get_private_channel_by_user(self.id)
 
-    @property
-    def mutual_guilds(self):
-        """List[:class:`Guild`]: The guilds that the user shares with the client.
+    def note(self):
+        """|coro|
 
-        .. note::
+        Returns the user's note.
 
-            This will only return mutual guilds within the client's internal cache.
+        Raises
+        -------
+        HTTPException
+            Getting the note failed.
 
-        .. versionadded:: 1.7
+        Returns
+        -------
+        :class:`str`
+            The note. Could be ``None``.
         """
-        return [guild for guild in self._state._guilds.values() if guild.get_member(self.id)]
+
+        try:
+            return self._state.http.get_note(self.id)
+        except NotFound:
+            return None
+
+    async def set_note(self, note=None):
+        """|coro|
+
+        Sets the user's note.
+
+        Raises
+        -------
+        HTTPException
+            Setting the note failed.
+        """
+
+        await self._state.http.set_note(self.id, note=note)
 
     async def create_dm(self):
         """|coro|
@@ -775,7 +863,7 @@ class User(BaseUser, discord.abc.Messageable):
             Blocking the user failed.
         """
 
-        await self._state.http.add_relationship(self.id, type=RelationshipType.blocked.value)
+        await self._state.http.add_relationship(self.id, type=RelationshipType.blocked.value, action=RelationshipAction.block)
 
     async def unblock(self):
         """|coro|
@@ -789,7 +877,7 @@ class User(BaseUser, discord.abc.Messageable):
         HTTPException
             Unblocking the user failed.
         """
-        await self._state.http.remove_relationship(self.id)
+        await self._state.http.remove_relationship(self.id, action=RelationshipAction.unblock)
 
     async def remove_friend(self):
         """|coro|
@@ -803,7 +891,7 @@ class User(BaseUser, discord.abc.Messageable):
         HTTPException
             Removing the user as a friend failed.
         """
-        await self._state.http.remove_relationship(self.id)
+        await self._state.http.remove_relationship(self.id, action=RelationshipAction.unfriend)
 
     async def send_friend_request(self):
         """|coro|
@@ -817,7 +905,7 @@ class User(BaseUser, discord.abc.Messageable):
         HTTPException
             Sending the friend request failed.
         """
-        await self._state.http.send_friend_request(username=self.name, discriminator=self.discriminator)
+        await self._state.http.send_friend_request(self.name, self.discriminator)
 
     async def profile(self):
         """|coro|
@@ -849,10 +937,10 @@ class User(BaseUser, discord.abc.Messageable):
                        premium_since=parse_time(since),
                        mutual_guilds=mutual_guilds,
                        user=self,
-                       connected_accounts=data['connected_accounts'])
+                       connected_accounts=data['connected_accounts'], bio=data['user'].get('bio', ''))
 
 
-class LazyUser(BaseUser):
+class LazyUser(User):
     def __init__(self, state, user_id):
         fake_data = {
             'username': None,

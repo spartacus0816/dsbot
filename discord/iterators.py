@@ -479,56 +479,19 @@ class AuditLogIterator(_AsyncIterator):
 class GuildIterator(_AsyncIterator):
     """Iterator for receiving the client's guilds.
 
-    The guilds endpoint has the same two behaviours as described
-    in :class:`HistoryIterator`:
-    If ``before`` is specified, the guilds endpoint returns the ``limit``
-    newest guilds before ``before``, sorted with newest first. For filling over
-    100 guilds, update the ``before`` parameter to the oldest guild received.
-    Guilds will be returned in order by time.
-    If `after` is specified, it returns the ``limit`` oldest guilds after ``after``,
-    sorted with newest first. For filling over 100 guilds, update the ``after``
-    parameter to the newest guild received, If guilds are not reversed, they
-    will be out of order (99-0, 199-100, so on)
-
-    Not that if both ``before`` and ``after`` are specified, ``before`` is ignored by the
-    guilds endpoint.
-
     Parameters
     -----------
     bot: :class:`discord.Client`
         The client to retrieve the guilds from.
-    limit: :class:`int`
-        Maximum number of guilds to retrieve.
-    before: Optional[Union[:class:`abc.Snowflake`, :class:`datetime.datetime`]]
-        Object before which all guilds must be.
-    after: Optional[Union[:class:`abc.Snowflake`, :class:`datetime.datetime`]]
-        Object after which all guilds must be.
     """
-    def __init__(self, bot, limit, before=None, after=None):
-
-        if isinstance(before, datetime.datetime):
-            before = Object(id=time_snowflake(before, high=False))
-        if isinstance(after, datetime.datetime):
-            after = Object(id=time_snowflake(after, high=True))
-
+    def __init__(self, bot):
         self.bot = bot
-        self.limit = limit
-        self.before = before
-        self.after = after
 
         self._filter = None
 
         self.state = self.bot._connection
         self.get_guilds = self.bot.http.get_guilds
         self.guilds = asyncio.Queue()
-
-        if self.before and self.after:
-            self._retrieve_guilds = self._retrieve_guilds_before_strategy
-            self._filter = lambda m: int(m['id']) > self.after.id
-        elif self.after:
-            self._retrieve_guilds = self._retrieve_guilds_after_strategy
-        else:
-            self._retrieve_guilds = self._retrieve_guilds_before_strategy
 
     async def next(self):
         if self.guilds.empty():
@@ -539,117 +502,30 @@ class GuildIterator(_AsyncIterator):
         except asyncio.QueueEmpty:
             raise NoMoreItems()
 
-    def _get_retrieve(self):
-        l = self.limit
-        if l is None or l > 100:
-            r = 100
-        else:
-            r = l
-        self.retrieve = r
-        return r > 0
-
     def create_guild(self, data):
         from .guild import Guild
         return Guild(state=self.state, data=data)
 
     async def flatten(self):
         result = []
-        while self._get_retrieve():
-            data = await self._retrieve_guilds(self.retrieve)
-            if len(data) < 100:
-                self.limit = 0
+        data = await self._retrieve_guilds()
 
-            if self._filter:
-                data = filter(self._filter, data)
+        if self._filter:
+            data = filter(self._filter, data)
 
-            for element in data:
-                result.append(self.create_guild(element))
+        for element in data:
+            result.append(self.create_guild(element))
         return result
 
     async def fill_guilds(self):
-        if self._get_retrieve():
-            data = await self._retrieve_guilds(self.retrieve)
-            if self.limit is None or len(data) < 100:
-                self.limit = 0
+        data = await self._retrieve_guilds()
 
-            if self._filter:
-                data = filter(self._filter, data)
+        if self._filter:
+            data = filter(self._filter, data)
 
-            for element in data:
-                await self.guilds.put(self.create_guild(element))
+        for element in data:
+            await self.guilds.put(self.create_guild(element))
 
-    async def _retrieve_guilds(self, retrieve):
-        """Retrieve guilds and update next parameters."""
-        pass
-
-    async def _retrieve_guilds_before_strategy(self, retrieve):
-        """Retrieve guilds using before parameter."""
-        before = self.before.id if self.before else None
-        data = await self.get_guilds(retrieve, before=before)
-        if len(data):
-            if self.limit is not None:
-                self.limit -= retrieve
-            self.before = Object(id=int(data[-1]['id']))
+    async def _retrieve_guilds(self):
+        data = await self.get_guilds()
         return data
-
-    async def _retrieve_guilds_after_strategy(self, retrieve):
-        """Retrieve guilds using after parameter."""
-        after = self.after.id if self.after else None
-        data = await self.get_guilds(retrieve, after=after)
-        if len(data):
-            if self.limit is not None:
-                self.limit -= retrieve
-            self.after = Object(id=int(data[0]['id']))
-        return data
-
-class MemberIterator(_AsyncIterator):
-    def __init__(self, guild, limit=1000, after=None):
-
-        if isinstance(after, datetime.datetime):
-            after = Object(id=time_snowflake(after, high=True))
-
-        self.guild = guild
-        self.limit = limit
-        self.after = after or OLDEST_OBJECT
-
-        self.state = self.guild._state
-        self.get_members = self.state.http.get_members
-        self.members = asyncio.Queue()
-
-    async def next(self):
-        if self.members.empty():
-            await self.fill_members()
-
-        try:
-            return self.members.get_nowait()
-        except asyncio.QueueEmpty:
-            raise NoMoreItems()
-
-    def _get_retrieve(self):
-        l = self.limit
-        if l is None or l > 1000:
-            r = 1000
-        else:
-            r = l
-        self.retrieve = r
-        return r > 0
-
-    async def fill_members(self):
-        if self._get_retrieve():
-            after = self.after.id if self.after else None
-            data = await self.get_members(self.guild.id, self.retrieve, after)
-            if not data:
-                # no data, terminate
-                return
-
-            if len(data) < 1000:
-                self.limit = 0 # terminate loop
-
-            self.after = Object(id=int(data[-1]['user']['id']))
-
-            for element in reversed(data):
-                await self.members.put(self.create_member(element))
-
-    def create_member(self, data):
-        from .member import Member
-        return Member(data=data, guild=self.guild, state=self.state)

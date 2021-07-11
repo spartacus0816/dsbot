@@ -267,7 +267,7 @@ class DiscordWebSocket:
     HEARTBEAT_ACK      = 11
     GUILD_SYNC         = 12
     DM                 = 13
-    LAZY_GUILD_REQUEST = 14
+    GUILD_SUBSCRIBE    = 14
 
     def __init__(self, socket, *, loop):
         self.socket = socket
@@ -387,15 +387,6 @@ class DiscordWebSocket:
         if not self._zlib_enabled:
             payload['d']['compress'] = True
 
-        state = self._connection
-        if state._activity is not None or state._status is not None:
-            payload['d']['presence'] = {
-                'status': state._status,
-                'activities': state._activity,
-                'since': 0,
-                'afk': False
-            }
-
         await self.call_hooks('before_identify', initial=self._initial_identify)
         await self.send_as_json(payload)
         log.info('Bot has sent the IDENTIFY payload.')
@@ -500,6 +491,7 @@ class DiscordWebSocket:
         except KeyError:
             log.debug('Unknown event %s.', event)
         else:
+            log.debug(f'Parsing event {event}')
             func(data)
 
         # remove the dispatched listeners
@@ -618,11 +610,28 @@ class DiscordWebSocket:
         log.debug('Sending "%s" to change status', sent)
         await self.send(sent)
 
-    async def request_sync(self, guild_ids):
+    async def request_lazy_guild(self, guild_id, *, typing=None, threads=None, activities=None, members=None, channels=None, thread_member_lists=None):
         payload = {
-            'op': self.GUILD_SYNC,
-            'd': list(guild_ids)
+            'op': self.GUILD_SUBSCRIBE,
+            'd': {
+                'guild_id': str(guild_id),
+            }
         }
+
+        data = payload['d']
+        if typing:
+            data['typing'] = typing
+        if threads:
+            data['threads'] = threads
+        if activities:
+            data['activities'] = activities
+        if members:
+            data['members'] = members
+        if channels:
+            data['channels'] = channels
+        if thread_member_lists:
+            data['thread_member_lists'] = thread_member_lists
+
         await self.send_as_json(payload)
 
     async def request_chunks(self, guild_id, query=None, *, limit, user_ids=None, presences=True, nonce=None):
@@ -644,19 +653,23 @@ class DiscordWebSocket:
         if query is not None:
             payload['d']['query'] = query
 
-
         await self.send_as_json(payload)
 
-    async def voice_state(self, guild_id, channel_id, self_mute=False, self_deaf=False):
+    async def voice_state(self, guild_id=None, channel_id=None, self_mute=False, self_deaf=False, self_video=None, *, preferred_region=None):
         payload = {
             'op': self.VOICE_STATE,
             'd': {
                 'guild_id': guild_id,
                 'channel_id': channel_id,
                 'self_mute': self_mute,
-                'self_deaf': self_deaf
+                'self_deaf': self_deaf,
             }
         }
+
+        if self_video is not None:
+            payload['d']['self_video'] = self_video
+        if preferred_region is not None:
+            payload['d']['preferred_region'] = preferred_region
 
         log.debug('Updating our voice state to %s.', payload)
         await self.send_as_json(payload)

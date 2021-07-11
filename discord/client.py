@@ -38,7 +38,7 @@ from .template import Template
 from .widget import Widget
 from .guild import Guild
 from .channel import _channel_factory
-from .enums import ChannelType
+from .enums import ChannelType, Status, try_enum
 from .mentions import AllowedMentions
 from .errors import *
 from .enums import Status, VoiceRegion
@@ -52,7 +52,6 @@ from .object import Object
 from .backoff import ExponentialBackoff
 from .webhook import Webhook
 from .iterators import GuildIterator
-from .appinfo import AppInfo
 
 log = logging.getLogger(__name__)
 
@@ -134,16 +133,11 @@ class Client:
         Proxy URL.
     proxy_auth: Optional[:class:`aiohttp.BasicAuth`]
         An object that represents proxy HTTP Basic Authorization.
-    intents: :class:`Intents`
-        The intents that you want to enable for the session. This is a way of
-        disabling and enabling certain gateway events from triggering and being sent.
-        If not given, defaults to a regularly constructed :class:`Intents` class.
 
         .. versionadded:: 1.5
     member_cache_flags: :class:`MemberCacheFlags`
         Allows for finer control over how the library caches members.
-        If not given, defaults to cache as much as possible with the
-        currently selected intents.
+        If not given, defaults to cache as much as possible.
 
         .. versionadded:: 1.5
     fetch_offline_members: :class:`bool`
@@ -151,10 +145,17 @@ class Client:
     chunk_guilds_at_startup: :class:`bool`
         Indicates if :func:`.on_ready` should be delayed to chunk all guilds
         at start-up if necessary. This operation is incredibly slow for large
-        amounts of guilds. The default is ``True`` if :attr:`Intents.members`
-        is ``True``.
+        amounts of guilds. The default is ``True``.
 
         .. versionadded:: 1.5
+    guild_subscribe_at_startup: :class:`bool`
+        Indicates whether the client should loop through and subscribe to all
+        member ranges for each guild, effectively getting the entire viewable
+        member list. Offline members are not retrieved for large guilds, as
+        the client does not have access to them.
+
+        .. versionadded:: 1.9
+
     status: Optional[:class:`.Status`]
         A status to start your presence with upon logging on to Discord.
     activity: Optional[:class:`.BaseActivity`]
@@ -232,7 +233,8 @@ class Client:
         self.http = HTTPClient(connector, proxy=proxy, proxy_auth=proxy_auth, unsync_clock=unsync_clock, loop=self.loop)
 
         self._handlers = {
-            'ready': self._handle_ready
+            'ready': self._handle_ready,
+            'connect': self._handle_connect
         }
 
         self._hooks = {
@@ -262,47 +264,13 @@ class Client:
         await self.ws.request_sync(guilds)
 
     def _handle_ready(self):
-        for index in range(len(self.guilds)):
-            guild = self.guilds[index]
-            if index==0:
-                payload = {
-                    "op": 14,
-                    "d": {
-                        "guild_id": str(guild.id),
-                        "typing": True,
-                        "threads": False,
-                        "activities": True,
-                        "members": [],
-                        "channels": {
-                            str(guild.channels[0].id): [
-                                [
-                                    0,
-                                    99
-                                ]
-                            ]
-                        }
-                    }
-                }
-            else:
-                payload = {
-                    "op": 14,
-                    "d": {
-                        "guild_id": str(guild.id),
-                        "typing": True,
-                        "activities": True,
-                        "channels": {
-                            str(guild.channels[0].id): [
-                                [
-                                    0,
-                                    99
-                                ]
-                            ]
-                        }
-                    }
-                }
-            asyncio.ensure_future(self.ws.send_as_json(payload), loop=self.loop)
-
         self._ready.set()
+
+    def _handle_connect(self):
+        state = self._connection
+        activity = create_activity(state._activity)
+        status = try_enum(Status, state._status)
+        self.loop.create_task(self.change_presence(activity=activity, status=status))
 
     @property
     def latency(self):
@@ -488,7 +456,7 @@ class Client:
         if you wish to have more control over the synchronization of multiple
         IDENTIFYing clients.
 
-        The default implementation sleeps for 5 seconds.
+        The default implementation does nothing.
 
         .. versionadded:: 1.4
 
@@ -498,8 +466,9 @@ class Client:
             Whether this IDENTIFY is the first initial IDENTIFY.
         """
 
-        if not initial:
-            await asyncio.sleep(5.0)
+        #if not initial:
+            #await asyncio.sleep(5.0)
+        pass
 
     # login state management
 
@@ -530,9 +499,8 @@ class Client:
             passing status code.
         """
 
-        log.info('logging in using static token')
+        log.info('Logging in using static token')
         await self.http.static_login(token.strip())
-        self._connection.is_bot = False # HERE
 
     @utils.deprecated('Client.close')
     async def logout(self):
@@ -619,8 +587,6 @@ class Client:
                 # sometimes, discord sends us 1000 for unknown reasons so we should reconnect
                 # regardless and rely on is_closed instead
                 if isinstance(exc, ConnectionClosed):
-                    if exc.code == 4014:
-                        raise PrivilegedIntentsRequired() from None
                     if exc.code != 1000:
                         await self.close()
                         raise
@@ -633,13 +599,16 @@ class Client:
                 # This is apparently what the official Discord client does.
                 ws_params.update(sequence=self.ws.sequence, resume=True, session=self.ws.session_id)
 
-    async def close(self):
+    async def close(self, logout=False):
         """|coro|
 
         Closes the connection to Discord.
         """
         if self._closed:
             return
+
+        if logout:
+            await self.http.logout()
 
         await self.http.close()
         self._closed = True
@@ -782,14 +751,6 @@ class Client:
             self._connection.allowed_mentions = value
         else:
             raise TypeError('allowed_mentions must be AllowedMentions not {0.__class__!r}'.format(value))
-
-    @property
-    def intents(self):
-        """:class:`~discord.Intents`: The intents configured for this connection.
-
-        .. versionadded:: 1.5
-        """
-        return self._connection.intents
 
     # helpers/getters
 
@@ -1082,6 +1043,9 @@ class Client:
 
         await self.ws.change_presence(activity=activity, status=status, afk=afk)
 
+        if status:
+            await self._connection.user.edit_settings(status=status_enum)
+
         for guild in self._connection.guilds:
             me = guild.me
             if me is None:
@@ -1096,7 +1060,7 @@ class Client:
 
     # Guild stuff
 
-    def fetch_guilds(self, *, limit=100, before=None, after=None):
+    def fetch_guilds(self):
         """Retrieves an :class:`.AsyncIterator` that enables receiving your guilds.
 
         .. note::
@@ -1113,29 +1077,13 @@ class Client:
 
         Usage ::
 
-            async for guild in client.fetch_guilds(limit=150):
+            async for guild in client.fetch_guilds():
                 print(guild.name)
 
         Flattening into a list ::
 
-            guilds = await client.fetch_guilds(limit=150).flatten()
+            guilds = await client.fetch_guilds().flatten()
             # guilds is now a list of Guild...
-
-        All parameters are optional.
-
-        Parameters
-        -----------
-        limit: Optional[:class:`int`]
-            The number of guilds to retrieve.
-            If ``None``, it retrieves every guild you have access to. Note, however,
-            that this would make it a slow operation.
-            Defaults to ``100``.
-        before: Union[:class:`.abc.Snowflake`, :class:`datetime.datetime`]
-            Retrieves guilds before this date or object.
-            If a date is provided it must be a timezone-naive datetime representing UTC time.
-        after: Union[:class:`.abc.Snowflake`, :class:`datetime.datetime`]
-            Retrieve guilds after this date or object.
-            If a date is provided it must be a timezone-naive datetime representing UTC time.
 
         Raises
         ------
@@ -1147,7 +1095,7 @@ class Client:
         :class:`.Guild`
             The guild with the guild data parsed.
         """
-        return GuildIterator(self, limit=limit, before=before, after=after)
+        return GuildIterator(self)
 
     async def fetch_template(self, code):
         """|coro|
@@ -1182,8 +1130,7 @@ class Client:
 
         .. note::
 
-            Using this, you will **not** receive :attr:`.Guild.channels`, :attr:`.Guild.members`,
-            :attr:`.Member.activity` and :attr:`.Member.voice` per :class:`.Member`.
+            Using this, you will **not** receive :attr:`.Guild.channels` and :attr:`.Guild.members`.
 
         .. note::
 
@@ -1209,7 +1156,7 @@ class Client:
         data = await self.http.get_guild(guild_id)
         return Guild(data=data, state=self._connection)
 
-    async def create_guild(self, name, region=None, icon=None, *, code=None):
+    async def create_guild(self, name, icon=None, *, code=None):
         """|coro|
 
         Creates a :class:`.Guild`.
@@ -1218,9 +1165,6 @@ class Client:
         ----------
         name: :class:`str`
             The name of the guild.
-        region: :class:`.VoiceRegion`
-            The region for the voice communication server.
-            Defaults to :attr:`.VoiceRegion.us_west`.
         icon: :class:`bytes`
             The :term:`py:bytes-like object` representing the icon. See :meth:`.ClientUser.edit`
             for more details on what is expected.
@@ -1249,14 +1193,72 @@ class Client:
         region_value = region.value
 
         if code:
-            data = await self.http.create_from_template(code, name, region_value, icon)
+            data = await self.http.create_from_template(code, name, icon)
         else:
-            data = await self.http.create_guild(name, region_value, icon)
+            data = await self.http.create_guild(name, icon)
         return Guild(data=data, state=self._connection)
+
+    async def join_guild(self, invite):
+        """|coro|
+        
+        Joines a guild.
+
+        Parameters
+        ----------
+        invite: Union[:class:`.Invite`, :class:`str`]
+            The Discord invite ID, URL (must be a discord.gg URL), or :class:`.Invite`.
+
+        Raises
+        ------
+        :exc:`.HTTPException`
+            Joining the guild failed.
+        :exc:`.InvalidArgument`
+            Tried to join a guild you're already in.
+
+        Returns
+        -------
+        :class:`.Guild`
+            The guild joined. This is not the same guild that is
+            added to cache.
+        """
+
+        if not isinstance(invite, Invite):
+            invite = await self.fetch_invite(invite, with_counts=False, with_expiration=False)
+            #raise TypeError('invite must be Invite not {0.__class__!r}'.format(invite))
+
+        data = await self.http.join_guild(invite.code, guild_id=invite.guild.id, channel_id=invite.channel.id, channel_type=invite.channel.type.value)
+
+        new_member = data.get('new_member', False)
+        if not new_member:
+            raise InvalidArgument('Tried to join a guild you\'re already in.')
+
+        return Guild(data=data['guild'], state=self._connection)
+
+    async def leave_guild(self, guild_id):
+        """|coro|
+
+        Leaves a guild.
+
+        .. note::
+
+            You cannot leave a guild that you own, you must delete it instead.
+
+        Parameters
+        ----------
+        guild_id:
+            The ID of the guild you want to leave.
+
+        Raises
+        ------
+        :exc:`.HTTPException`
+            Leaving the guild failed.
+        """
+        
+        await self.http.leave_guild(guild_id)
 
     # Invite management
 
-    async def fetch_invite(self, url, *, with_counts=True):
+    async def fetch_invite(self, url, *, with_counts=True, with_expiration=True):
         """|coro|
 
         Gets an :class:`.Invite` from a discord.gg URL or ID.
@@ -1275,6 +1277,9 @@ class Client:
             Whether to include count information in the invite. This fills the
             :attr:`.Invite.approximate_member_count` and :attr:`.Invite.approximate_presence_count`
             fields.
+        with_expiration: :class:`bool`
+            Whether to include expiration information in the invite. This fills the
+            :attr:`.Invite.expires_at` fields.
 
         Raises
         -------
@@ -1351,33 +1356,13 @@ class Client:
 
         return Widget(state=self._connection, data=data)
 
-    async def application_info(self):
-        """|coro|
-
-        Retrieves the bot's application information.
-
-        Raises
-        -------
-        :exc:`.HTTPException`
-            Retrieving the information failed somehow.
-
-        Returns
-        --------
-        :class:`.AppInfo`
-            The bot's application information.
-        """
-        data = await self.http.application_info()
-        if 'rpc_origins' not in data:
-            data['rpc_origins'] = None
-        return AppInfo(self._connection, data)
-
     async def fetch_user(self, user_id):
         """|coro|
 
         Retrieves a :class:`~discord.User` based on their ID.
-        This calls fetch_user_profile(). You do not have to share
-        any guilds with the user to get this information, however
-        many operations do require that you do.
+        This calls :meth:`fetch_user_profile`. You do not have to
+        share any guilds with the user to get this information,
+        however many operations do require that you do.
 
         Parameters
         -----------
@@ -1435,7 +1420,7 @@ class Client:
                        premium_since=utils.parse_time(since),
                        mutual_guilds=mutual_guilds,
                        user=User(data=user, state=state),
-                       connected_accounts=data['connected_accounts'])
+                       connected_accounts=data['connected_accounts'], bio=user['bio'])
 
     async def fetch_channel(self, channel_id):
         """|coro|

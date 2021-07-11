@@ -133,43 +133,6 @@ def deprecated(instead=None):
         return decorated
     return actual_decorator
 
-def oauth_url(client_id, permissions=None, guild=None, redirect_uri=None, scopes=None):
-    """A helper function that returns the OAuth2 URL for inviting the bot
-    into guilds.
-
-    Parameters
-    -----------
-    client_id: :class:`str`
-        The client ID for your bot.
-    permissions: :class:`~discord.Permissions`
-        The permissions you're requesting. If not given then you won't be requesting any
-        permissions.
-    guild: :class:`~discord.Guild`
-        The guild to pre-select in the authorization screen, if available.
-    redirect_uri: :class:`str`
-        An optional valid redirect URI.
-    scopes: Iterable[:class:`str`]
-        An optional valid list of scopes. Defaults to ``('bot',)``.
-
-        .. versionadded:: 1.7
-
-    Returns
-    --------
-    :class:`str`
-        The OAuth2 URL for inviting the bot into guilds.
-    """
-    url = 'https://discord.com/oauth2/authorize?client_id={}'.format(client_id)
-    url = url + '&scope=' + '+'.join(scopes or ('bot',))
-    if permissions is not None:
-        url = url + '&permissions=' + str(permissions.value)
-    if guild is not None:
-        url = url + "&guild_id=" + str(guild.id)
-    if redirect_uri is not None:
-        from urllib.parse import urlencode
-        url = url + "&response_type=code&" + urlencode({'redirect_uri': redirect_uri})
-    return url
-
-
 def snowflake_time(id):
     """
     Parameters

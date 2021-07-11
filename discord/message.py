@@ -1134,20 +1134,13 @@ class Message(Hashable):
 
         await self._state.http.publish_message(self.channel.id, self.id)
 
-    async def pin(self, *, reason=None):
+    async def pin(self):
         """|coro|
 
         Pins the message.
 
         You must have the :attr:`~Permissions.manage_messages` permission to do
         this in a non-private channel context.
-
-        Parameters
-        -----------
-        reason: Optional[:class:`str`]
-            The reason for pinning the message. Shows up on the audit log.
-
-            .. versionadded:: 1.4
 
         Raises
         -------
@@ -1160,23 +1153,16 @@ class Message(Hashable):
             having more than 50 pinned messages.
         """
 
-        await self._state.http.pin_message(self.channel.id, self.id, reason=reason)
+        await self._state.http.pin_message(self.channel.id, self.id)
         self.pinned = True
 
-    async def unpin(self, *, reason=None):
+    async def unpin(self):
         """|coro|
 
         Unpins the message.
 
         You must have the :attr:`~Permissions.manage_messages` permission to do
         this in a non-private channel context.
-
-        Parameters
-        -----------
-        reason: Optional[:class:`str`]
-            The reason for unpinning the message. Shows up on the audit log.
-
-            .. versionadded:: 1.4
 
         Raises
         -------
@@ -1188,7 +1174,7 @@ class Message(Hashable):
             Unpinning the message failed.
         """
 
-        await self._state.http.unpin_message(self.channel.id, self.id, reason=reason)
+        await self._state.http.unpin_message(self.channel.id, self.id)
         self.pinned = False
 
     async def add_reaction(self, emoji):
