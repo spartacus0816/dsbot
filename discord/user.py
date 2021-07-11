@@ -938,15 +938,3 @@ class User(BaseUser, discord.abc.Messageable):
                        mutual_guilds=mutual_guilds,
                        user=self,
                        connected_accounts=data['connected_accounts'], bio=data['user'].get('bio', ''))
-
-
-class LazyUser(User):
-    def __init__(self, state, user_id):
-        fake_data = {
-            'username': None,
-            'id': user_id,
-            'discriminator': 0000,
-            'avatar': None,
-        }
-
-        super().__init__(state=state, data=fake_data)

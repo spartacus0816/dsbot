@@ -39,7 +39,7 @@ import os
 
 from .guild import Guild
 from .activity import BaseActivity
-from .user import User, ClientUser, LazyUser
+from .user import User, ClientUser
 from .emoji import Emoji
 from .mentions import AllowedMentions
 from .partial_emoji import PartialEmoji
@@ -466,7 +466,6 @@ class ConnectionState:
         self._ready_task = asyncio.ensure_future(self._delay_ready(), loop=self.loop)
 
     def parse_resumed(self, data):
-        self.call_handlers('resumed')
         self.dispatch('resumed')
 
     def parse_message_create(self, data):
