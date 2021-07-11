@@ -753,7 +753,6 @@ class ConnectionState:
             log.debug('GUILD_MEMBER_UPDATE referencing an unknown member ID: %s. Discarding.', user_id)
 
     def parse_guild_member_list_update(self, data):
-        breakpoint()
         guild = self._get_guild(int(data['guild_id']))
         if guild is None:
             log.debug('GUILD_MEMBER_LIST_UPDATE referencing an unknown guild ID: %s. Discarding.', data['guild_id'])
