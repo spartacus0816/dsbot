@@ -874,7 +874,7 @@ class ConnectionState:
         # for an unavailable guild.
         if guild is not None:
             guild._from_data(data)
-            return guild
+            return
 
         return self._add_guild_from_data(data)
 
@@ -917,6 +917,10 @@ class ConnectionState:
         unavailable = data.get('unavailable')
 
         guild = self._get_create_guild(data)
+
+        if guild is None:
+            # Useless GUILD_CREATE
+            return
 
         # Check if it requires chunking
         if self._guild_needs_chunking(guild):
