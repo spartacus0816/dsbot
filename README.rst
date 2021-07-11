@@ -10,34 +10,28 @@ discord.py-self
 
 **Self-bot only fork.**
 
-A modern, easy to use, feature-rich, and async ready API wrapper for Discord written in Python.
+A modern, easy to use, feature-rich, and async ready API wrapper for Discord's user API written in Python.
 
 Fork Changes
 ------------
 
-- Fixed self-bot issues with ``message.content`` & ``message.embed``.
-- Added lazy-loading for users.
-- Obfuscated user-agent & IDENTIFY packet.
-- Removed bot user support (no more ``bot=False``).
-- Removed bot-only methods and un-deprecated user ones.
-- (Partially) fixed ``guild.members``.
-- Fixed ``guild.me``.
-- Fixed large guild events.
+The changes have been moved to the `website <https://dolf.ml/discord.py-self>`_ (WIP).
 
 **Credits:**
-
-- `u/pogofetch <https://www.reddit.com/user/pogofetch/>`_ for lazy user loading patches.
+s.
 - `karibiusk <https://stackoverflow.com/users/15139805/karibiusk/>`_ for some food for thought.
 - `Maxx0911 <https://www.reddit.com/user/Maxx0911/>`_ for more food for thought.
 - `arandomnewaccount <https://www.reddit.com/user/obviouslymymain123/>`_ for Discord API help.
 
 **Roadmap:**
 
-- Add undocumented Discord API features.
-- Continue fixing ``guild.members``.
+- Continue adding undocumented user APIs
+- Add slash command support
+- Add bot UI support
 
 **Note:**
 Self-botting/user-botting is against the Discord ToS. This library is a proof of concept and I do not recommend using it. Do so at your own risk.
+The master branch is not ready to be used. Please avoid using it.
 
 Key Features
 -------------
@@ -73,7 +67,7 @@ Otherwise to get voice support you should run the following command:
     py -3 -m pip install -U discord.py-self[voice]
 
 
-To install the development version, do the following:
+To install the development version, do the following (not recommended):
 
 .. code:: sh
 
@@ -135,4 +129,4 @@ You can find more examples in the examples directory.
 Links
 ------
 
-- `Official Discord.py Documentation <https://discordpy.readthedocs.io/en/latest/index.html>`_
+- `Documentation (WIP) <https://dolf.ml/discord.py-self>`_
