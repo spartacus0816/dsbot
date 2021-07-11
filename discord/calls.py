@@ -93,8 +93,6 @@ class GroupCall:
 
     This is accompanied with a :class:`CallMessage` denoting the information.
 
-    .. deprecated:: 1.7
-
     Attributes
     -----------
     call: :class:`CallMessage`
@@ -135,9 +133,7 @@ class GroupCall:
     @property
     def connected(self):
         """List[:class:`User`]: A property that returns all users that are currently in this call.
-        
-        .. deprecated:: 1.7
-        """
+                """
         ret = [u for u in self.channel.recipients if self.voice_state_for(u) is not None]
         me = self.channel.me
         if self.voice_state_for(me) is not None:
@@ -148,19 +144,14 @@ class GroupCall:
     @property
     def channel(self):
         r""":class:`GroupChannel`\: Returns the channel the group call is in.
-
-        .. deprecated:: 1.7
         """
         return self.call.channel
 
-    @utils.deprecated()
     def voice_state_for(self, user):
         """Retrieves the :class:`VoiceState` for a specified :class:`User`.
 
         If the :class:`User` has no voice state then this function returns
         ``None``.
-
-        .. deprecated:: 1.7
 
         Parameters
         ------------

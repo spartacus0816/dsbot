@@ -24,62 +24,59 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 """
 
-from .enums import RelationshipType, try_enum
+from .enums import RelationshipAction, RelationshipType, try_enum
 from . import utils
 
 class Relationship:
     """Represents a relationship in Discord.
 
     A relationship is like a friendship, a person who is blocked, etc.
-    Only non-bot accounts can have relationships.
-
-    .. deprecated:: 1.7
 
     Attributes
     -----------
+    nickname: :class:`str`
+        The user's friend nickname (if applicable).
     user: :class:`User`
         The user you have the relationship with.
     type: :class:`RelationshipType`
         The type of relationship you have.
     """
 
-    __slots__ = ('type', 'user', '_state')
+    __slots__ = ('nickname', 'type', 'user', '_state')
 
     def __init__(self, *, state, data):
         self._state = state
         self.type = try_enum(RelationshipType, data['type'])
-        if 'user' in data:
-            self.user = state.store_user(data['user'])
-        else:
-            self.user = state.store_lazy_user(data['user_id'])
+        self.user = state.store_user(data['user'])
+        self.nickname = data.get('nickname', None)
 
     def __repr__(self):
         return '<Relationship user={0.user!r} type={0.type!r}>'.format(self)
 
-    @utils.deprecated()
     async def delete(self):
         """|coro|
 
         Deletes the relationship.
-
-        .. deprecated:: 1.7
 
         Raises
         ------
         HTTPException
             Deleting the relationship failed.
         """
+        if self.type is RelationshipType.friend:
+            await self._state.http.remove_relationship(self.user.id, action=RelationshipAction.unfriend)
+        elif self.type is RelationshipType.blocked:
+            await self._state.http.remove_relationship(self.user.id, action=RelationshipAction.unblock)
+        elif self.type is RelationshipType.incoming_request:
+            await self._state.http.remove_relationship(self.user.id, action=RelationshipAction.deny_request)
+        elif self.type is RelationshipType.outgoing_request:
+            await self._state.http.remove_relationship(self.user.id, action=RelationshipAction.remove_pending_request)
 
-        await self._state.http.remove_relationship(self.user.id)
-
-    @utils.deprecated()
     async def accept(self):
         """|coro|
 
-        Accepts the relationship request. e.g. accepting a
-        friend request.
-
-        .. deprecated:: 1.7
+        Accepts the relationship request. Only applicable for 
+        type :class:`RelationshipType.incoming_request`.
 
         Raises
         -------
@@ -87,4 +84,4 @@ class Relationship:
             Accepting the relationship failed.
         """
 
-        await self._state.http.add_relationship(self.user.id)
+        await self._state.http.add_relationship(self.user.id, action=RelationshipAction.accept_request)

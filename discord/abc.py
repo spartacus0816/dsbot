@@ -212,7 +212,7 @@ class GuildChannel:
     def _sorting_bucket(self):
         raise NotImplementedError
 
-    async def _move(self, position, parent_id=None, lock_permissions=False, *, reason):
+    async def _move(self, position, parent_id=None, lock_permissions=False):
         if position < 0:
             raise InvalidArgument('Channel position cannot be less than 0.')
 
@@ -240,12 +240,12 @@ class GuildChannel:
                 d.update(parent_id=parent_id, lock_permissions=lock_permissions)
             payload.append(d)
 
-        await http.bulk_channel_update(self.guild.id, payload, reason=reason)
+        await http.bulk_channel_update(self.guild.id, payload)
         self.position = position
         if parent_id is not _undefined:
             self.category_id = int(parent_id) if parent_id else None
 
-    async def _edit(self, options, reason):
+    async def _edit(self, options):
         try:
             parent = options.pop('category')
         except KeyError:
@@ -281,7 +281,7 @@ class GuildChannel:
                 category = self.guild.get_channel(self.category_id)
                 options['permission_overwrites'] = [c._asdict() for c in category._overwrites]
         else:
-            await self._move(position, parent_id=parent_id, lock_permissions=lock_permissions, reason=reason)
+            await self._move(position, parent_id=parent_id, lock_permissions=lock_permissions)
 
         overwrites = options.get('overwrites', None)
         if overwrites is not None:
@@ -315,7 +315,7 @@ class GuildChannel:
             options['type'] = ch_type.value
 
         if options:
-            data = await self._state.http.edit_channel(self.id, reason=reason, **options)
+            data = await self._state.http.edit_channel(self.id, **options)
             self._update(self.guild, data)
 
     def _fill_overwrites(self, data):
@@ -549,18 +549,12 @@ class GuildChannel:
 
         return base
 
-    async def delete(self, *, reason=None):
+    async def delete(self):
         """|coro|
 
         Deletes the channel.
 
         You must have :attr:`~Permissions.manage_channels` permission to use this.
-
-        Parameters
-        -----------
-        reason: Optional[:class:`str`]
-            The reason for deleting this channel.
-            Shows up on the audit log.
 
         Raises
         -------
@@ -571,9 +565,9 @@ class GuildChannel:
         ~discord.HTTPException
             Deleting the channel failed.
         """
-        await self._state.http.delete_channel(self.id, reason=reason)
+        await self._state.http.delete_channel(self.id)
 
-    async def set_permissions(self, target, *, overwrite=_undefined, reason=None, **permissions):
+    async def set_permissions(self, target, *, overwrite=_undefined, **permissions):
         r"""|coro|
 
         Sets the channel specific permission overwrites for a target in the
@@ -622,8 +616,6 @@ class GuildChannel:
         \*\*permissions
             A keyword argument list of permissions to set for ease of use.
             Cannot be mixed with ``overwrite``.
-        reason: Optional[:class:`str`]
-            The reason for doing this action. Shows up on the audit log.
 
         Raises
         -------
@@ -661,14 +653,14 @@ class GuildChannel:
         # TODO: wait for event
 
         if overwrite is None:
-            await http.delete_channel_permissions(self.id, target.id, reason=reason)
+            await http.delete_channel_permissions(self.id, target.id)
         elif isinstance(overwrite, PermissionOverwrite):
             (allow, deny) = overwrite.pair()
-            await http.edit_channel_permissions(self.id, target.id, allow.value, deny.value, perm_type, reason=reason)
+            await http.edit_channel_permissions(self.id, target.id, allow.value, deny.value, perm_type)
         else:
             raise InvalidArgument('Invalid overwrite type provided.')
 
-    async def _clone_impl(self, base_attrs, *, name=None, reason=None):
+    async def _clone_impl(self, base_attrs, *, name=None):
         base_attrs['permission_overwrites'] = [
             x._asdict() for x in self._overwrites
         ]
@@ -676,14 +668,14 @@ class GuildChannel:
         base_attrs['name'] = name or self.name
         guild_id = self.guild.id
         cls = self.__class__
-        data = await self._state.http.create_channel(guild_id, self.type.value, reason=reason, **base_attrs)
+        data = await self._state.http.create_channel(guild_id, self.type.value, **base_attrs)
         obj = cls(state=self._state, guild=self.guild, data=data)
 
         # temporarily add it to the cache
         self.guild._channels[obj.id] = obj
         return obj
 
-    async def clone(self, *, name=None, reason=None):
+    async def clone(self, *, name=None):
         """|coro|
 
         Clones this channel. This creates a channel with the same properties
@@ -699,8 +691,6 @@ class GuildChannel:
         name: Optional[:class:`str`]
             The name of the new channel. If not provided, defaults to this
             channel name.
-        reason: Optional[:class:`str`]
-            The reason for cloning this channel. Shows up on the audit log.
 
         Raises
         -------
@@ -762,8 +752,6 @@ class GuildChannel:
             This parameter is ignored if moving a category channel.
         sync_permissions: :class:`bool`
             Whether to sync the permissions with the category (if given).
-        reason: :class:`str`
-            The reason for the move.
 
         Raises
         -------
@@ -827,17 +815,16 @@ class GuildChannel:
         channels.insert(max((index + offset), 0), self)
         payload = []
         lock_permissions = kwargs.get('sync_permissions', False)
-        reason = kwargs.get('reason')
         for index, channel in enumerate(channels):
             d = { 'id': channel.id, 'position': index }
             if parent_id is not ... and channel.id == self.id:
                 d.update(parent_id=parent_id, lock_permissions=lock_permissions)
             payload.append(d)
 
-        await self._state.http.bulk_channel_update(self.guild.id, payload, reason=reason)
+        await self._state.http.bulk_channel_update(self.guild.id, payload)
 
 
-    async def create_invite(self, *, reason=None, **fields):
+    async def create_invite(self, **fields):
         """|coro|
 
         Creates an instant invite from a text or voice channel.
@@ -860,8 +847,10 @@ class GuildChannel:
             Indicates if a unique invite URL should be created. Defaults to True.
             If this is set to ``False`` then it will return a previously created
             invite.
-        reason: Optional[:class:`str`]
-            The reason for creating this invite. Shows up on the audit log.
+        validate: Unknown
+            Purpose is unknown.
+        target_type: Unknown
+            Purpose is unknown.
 
         Raises
         -------
@@ -877,7 +866,7 @@ class GuildChannel:
             The invite that was created.
         """
 
-        data = await self._state.http.create_invite(self.id, reason=reason, **fields)
+        data = await self._state.http.create_invite(self.id, **fields)
         return Invite.from_incomplete(data=data, state=self._state)
 
     async def invites(self):

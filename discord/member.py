@@ -206,17 +206,16 @@ class Member(discord.abc.Messageable, _BaseUser):
     premium_since: Optional[:class:`datetime.datetime`]
         A datetime object that specifies the date and time in UTC when the member used their
         Nitro boost on the guild, if available. This could be ``None``.
+    guild_avatar: Optional[:class:`str`]
+        The guild avatar hash the member has. Could be None.
     """
 
     __slots__ = ('_roles', 'joined_at', 'premium_since', '_client_status',
-                 'activities', 'guild', 'pending', 'nick', '_user', '_state')
+                 'activities', 'guild', 'pending', 'nick', '_user', '_state', 'guild_avatar')
 
     def __init__(self, *, data, guild, state):
         self._state = state
-        if 'user' in data:
-            self._user = state.store_user(data['user'])
-        else:
-            self._user = state.store_lazy_user(data['user_id'])
+        self._user = state.store_user(data['user'])
         self.guild = guild
         self.joined_at = utils.parse_time(data.get('joined_at'))
         self.premium_since = utils.parse_time(data.get('premium_since'))
@@ -227,6 +226,7 @@ class Member(discord.abc.Messageable, _BaseUser):
         self.activities = tuple(map(create_activity, data.get('activities', [])))
         self.nick = data.get('nick', None)
         self.pending = data.get('pending', False)
+        self.guild_avatar = data.get('avatar')
 
     def __str__(self):
         return str(self._user)
@@ -256,6 +256,7 @@ class Member(discord.abc.Messageable, _BaseUser):
         self._update_roles(data)
         self.nick = data.get('nick', None)
         self.pending = data.get('pending', False)
+        self.guild_avatar = data.get('avatar')
 
     @classmethod
     def _try_upgrade(cls, *,  data, guild, state):
@@ -292,6 +293,7 @@ class Member(discord.abc.Messageable, _BaseUser):
         self.pending = member.pending
         self.activities = member.activities
         self._state = member._state
+        self.guild_avatar = member.guild_avatar
 
         # Reference will not be copied unless necessary by PRESENCE_UPDATE
         # See below
@@ -315,6 +317,11 @@ class Member(discord.abc.Messageable, _BaseUser):
 
         try:
             self.pending = data['pending']
+        except KeyError:
+            pass
+
+        try:
+            self.guild_avatar = data['avatar']
         except KeyError:
             pass
 
@@ -556,12 +563,12 @@ class Member(discord.abc.Messageable, _BaseUser):
         """
         await self.guild.ban(self, **kwargs)
 
-    async def unban(self, *, reason=None):
+    async def unban(self):
         """|coro|
 
         Unbans this member. Equivalent to :meth:`Guild.unban`.
         """
-        await self.guild.unban(self, reason=reason)
+        await self.guild.unban(self)
 
     async def kick(self, *, reason=None):
         """|coro|
@@ -570,7 +577,7 @@ class Member(discord.abc.Messageable, _BaseUser):
         """
         await self.guild.kick(self, reason=reason)
 
-    async def edit(self, *, reason=None, **fields):
+    async def edit(self, **fields):
         """|coro|
 
         Edits the member's data.
@@ -614,8 +621,6 @@ class Member(discord.abc.Messageable, _BaseUser):
         voice_channel: Optional[:class:`VoiceChannel`]
             The voice channel to move the member to.
             Pass ``None`` to kick them from voice.
-        reason: Optional[:class:`str`]
-            The reason for editing this member. Shows up on the audit log.
 
         Raises
         -------
@@ -637,7 +642,7 @@ class Member(discord.abc.Messageable, _BaseUser):
         else:
             nick = nick or ''
             if me:
-                await http.change_my_nickname(guild_id, nick, reason=reason)
+                await http.change_my_nickname(guild_id, nick)
             else:
                 payload['nick'] = nick
 
@@ -681,7 +686,7 @@ class Member(discord.abc.Messageable, _BaseUser):
             payload['roles'] = tuple(r.id for r in roles)
 
         if payload:
-            await http.edit_member(guild_id, self.id, reason=reason, **payload)
+            await http.edit_member(guild_id, self.id, **payload)
 
         # TODO: wait for WS event for modify-in-place behaviour
 
@@ -717,7 +722,7 @@ class Member(discord.abc.Messageable, _BaseUser):
         else:
             await self._state.http.edit_my_voice_state(self.guild.id, payload)
 
-    async def move_to(self, channel, *, reason=None):
+    async def move_to(self, channel):
         """|coro|
 
         Moves a member to a new voice channel (they must be connected first).
@@ -735,12 +740,10 @@ class Member(discord.abc.Messageable, _BaseUser):
         channel: Optional[:class:`VoiceChannel`]
             The new voice channel to move the member to.
             Pass ``None`` to kick them from voice.
-        reason: Optional[:class:`str`]
-            The reason for doing this action. Shows up on the audit log.
         """
-        await self.edit(voice_channel=channel, reason=reason)
+        await self.edit(voice_channel=channel)
 
-    async def add_roles(self, *roles, reason=None, atomic=True):
+    async def add_roles(self, *roles, atomic=True):
         r"""|coro|
 
         Gives the member a number of :class:`Role`\s.
@@ -754,8 +757,6 @@ class Member(discord.abc.Messageable, _BaseUser):
         \*roles: :class:`abc.Snowflake`
             An argument list of :class:`abc.Snowflake` representing a :class:`Role`
             to give to the member.
-        reason: Optional[:class:`str`]
-            The reason for adding these roles. Shows up on the audit log.
         atomic: :class:`bool`
             Whether to atomically add roles. This will ensure that multiple
             operations will always be applied regardless of the current
@@ -771,15 +772,15 @@ class Member(discord.abc.Messageable, _BaseUser):
 
         if not atomic:
             new_roles = utils._unique(Object(id=r.id) for s in (self.roles[1:], roles) for r in s)
-            await self.edit(roles=new_roles, reason=reason)
+            await self.edit(roles=new_roles)
         else:
             req = self._state.http.add_role
             guild_id = self.guild.id
             user_id = self.id
             for role in roles:
-                await req(guild_id, user_id, role.id, reason=reason)
+                await req(guild_id, user_id, role.id)
 
-    async def remove_roles(self, *roles, reason=None, atomic=True):
+    async def remove_roles(self, *roles, atomic=True):
         r"""|coro|
 
         Removes :class:`Role`\s from this member.
@@ -793,8 +794,6 @@ class Member(discord.abc.Messageable, _BaseUser):
         \*roles: :class:`abc.Snowflake`
             An argument list of :class:`abc.Snowflake` representing a :class:`Role`
             to remove from the member.
-        reason: Optional[:class:`str`]
-            The reason for removing these roles. Shows up on the audit log.
         atomic: :class:`bool`
             Whether to atomically remove roles. This will ensure that multiple
             operations will always be applied regardless of the current
@@ -816,10 +815,24 @@ class Member(discord.abc.Messageable, _BaseUser):
                 except ValueError:
                     pass
 
-            await self.edit(roles=new_roles, reason=reason)
+            await self.edit(roles=new_roles)
         else:
             req = self._state.http.remove_role
             guild_id = self.guild.id
             user_id = self.id
             for role in roles:
-                await req(guild_id, user_id, role.id, reason=reason)
+                await req(guild_id, user_id, role.id)
+
+    async def send_friend_request(self):
+        """|coro|
+
+        Sends the member a friend request.
+
+        Raises
+        -------
+        Forbidden
+            Not allowed to send a friend request to the member.
+        HTTPException
+            Sending the friend request failed.
+        """
+        await self._state.http.add_relationship(self._user.id, action=RelationshipAction.send_friend_request)

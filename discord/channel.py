@@ -184,7 +184,7 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
         """
         return self._state._get_message(self.last_message_id) if self.last_message_id else None
 
-    async def edit(self, *, reason=None, **options):
+    async def edit(self, **options):
         """|coro|
 
         Edits the channel.
@@ -221,8 +221,6 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
             Change the type of this text channel. Currently, only conversion between
             :attr:`ChannelType.text` and :attr:`ChannelType.news` is supported. This
             is only available to guilds that contain ``NEWS`` in :attr:`Guild.features`.
-        reason: Optional[:class:`str`]
-            The reason for editing this channel. Shows up on the audit log.
         overwrites: :class:`dict`
             A :class:`dict` of target (either a role or a member) to
             :class:`PermissionOverwrite` to apply to the channel.
@@ -237,15 +235,15 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
         HTTPException
             Editing the channel failed.
         """
-        await self._edit(options, reason=reason)
+        await self._edit(options)
 
     @utils.copy_doc(discord.abc.GuildChannel.clone)
-    async def clone(self, *, name=None, reason=None):
+    async def clone(self, *, name=None):
         return await self._clone_impl({
             'topic': self.topic,
             'nsfw': self.nsfw,
             'rate_limit_per_user': self.slowmode_delay
-        }, name=name, reason=reason)
+        }, name=name)
 
     async def purge(self, *, limit=100, check=None, before=None, after=None, around=None, oldest_first=False):
         """|coro|
@@ -369,15 +367,12 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
         data = await self._state.http.channel_webhooks(self.id)
         return [Webhook.from_state(d, state=self._state) for d in data]
 
-    async def create_webhook(self, *, name, avatar=None, reason=None):
+    async def create_webhook(self, *, name, avatar=None):
         """|coro|
 
         Creates a webhook for this channel.
 
         Requires :attr:`~.Permissions.manage_webhooks` permissions.
-
-        .. versionchanged:: 1.1
-            Added the ``reason`` keyword-only parameter.
 
         Parameters
         -------------
@@ -386,8 +381,6 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
         avatar: Optional[:class:`bytes`]
             A :term:`py:bytes-like object` representing the webhook's default avatar.
             This operates similarly to :meth:`~ClientUser.edit`.
-        reason: Optional[:class:`str`]
-            The reason for creating this webhook. Shows up in the audit logs.
 
         Raises
         -------
@@ -406,10 +399,10 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
         if avatar is not None:
             avatar = utils._bytes_to_base64_data(avatar)
 
-        data = await self._state.http.create_webhook(self.id, name=str(name), avatar=avatar, reason=reason)
+        data = await self._state.http.create_webhook(self.id, name=str(name), avatar=avatar)
         return Webhook.from_state(data, state=self._state)
 
-    async def follow(self, *, destination, reason=None):
+    async def follow(self, *, destination):
         """
         Follows a channel using a webhook.
 
@@ -426,10 +419,6 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
         -----------
         destination: :class:`TextChannel`
             The channel you would like to follow from.
-        reason: Optional[:class:`str`]
-            The reason for following the channel. Shows up on the destination guild's audit log.
-
-            .. versionadded:: 1.4
 
         Raises
         -------
@@ -451,7 +440,7 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
             raise InvalidArgument('Expected TextChannel received {0.__name__}'.format(type(destination)))
 
         from .webhook import Webhook
-        data = await self._state.http.follow_webhook(self.id, webhook_channel_id=destination.id, reason=reason)
+        data = await self._state.http.follow_webhook(self.id, webhook_channel_id=destination.id)
         return Webhook._as_follower(data, channel=destination, user=self._state.user)
 
     def get_partial_message(self, message_id):
@@ -614,13 +603,13 @@ class VoiceChannel(VocalGuildChannel):
         return ChannelType.voice
 
     @utils.copy_doc(discord.abc.GuildChannel.clone)
-    async def clone(self, *, name=None, reason=None):
+    async def clone(self, *, name=None):
         return await self._clone_impl({
             'bitrate': self.bitrate,
             'user_limit': self.user_limit
-        }, name=name, reason=reason)
+        }, name=name)
 
-    async def edit(self, *, reason=None, **options):
+    async def edit(self, **options):
         """|coro|
 
         Edits the channel.
@@ -647,8 +636,6 @@ class VoiceChannel(VocalGuildChannel):
         category: Optional[:class:`CategoryChannel`]
             The new category for this channel. Can be ``None`` to remove the
             category.
-        reason: Optional[:class:`str`]
-            The reason for editing this channel. Shows up on the audit log.
         overwrites: :class:`dict`
             A :class:`dict` of target (either a role or a member) to
             :class:`PermissionOverwrite` to apply to the channel.
@@ -668,7 +655,7 @@ class VoiceChannel(VocalGuildChannel):
             Editing the channel failed.
         """
 
-        await self._edit(options, reason=reason)
+        await self._edit(options)
 
 class StageChannel(VocalGuildChannel):
     """Represents a Discord guild stage channel.
@@ -746,12 +733,12 @@ class StageChannel(VocalGuildChannel):
         return ChannelType.stage_voice
 
     @utils.copy_doc(discord.abc.GuildChannel.clone)
-    async def clone(self, *, name=None, reason=None):
+    async def clone(self, *, name=None):
         return await self._clone_impl({
             'topic': self.topic,
-        }, name=name, reason=reason)
+        }, name=name)
 
-    async def edit(self, *, reason=None, **options):
+    async def edit(self, **options):
         """|coro|
 
         Edits the channel.
@@ -773,8 +760,6 @@ class StageChannel(VocalGuildChannel):
         category: Optional[:class:`CategoryChannel`]
             The new category for this channel. Can be ``None`` to remove the
             category.
-        reason: Optional[:class:`str`]
-            The reason for editing this channel. Shows up on the audit log.
         overwrites: :class:`dict`
             A :class:`dict` of target (either a role or a member) to
             :class:`PermissionOverwrite` to apply to the channel.
@@ -792,7 +777,7 @@ class StageChannel(VocalGuildChannel):
             Editing the channel failed.
         """
 
-        await self._edit(options, reason=reason)
+        await self._edit(options)
 
 class CategoryChannel(discord.abc.GuildChannel, Hashable):
     """Represents a Discord channel category.
@@ -862,12 +847,12 @@ class CategoryChannel(discord.abc.GuildChannel, Hashable):
         return self.nsfw
 
     @utils.copy_doc(discord.abc.GuildChannel.clone)
-    async def clone(self, *, name=None, reason=None):
+    async def clone(self, *, name=None):
         return await self._clone_impl({
             'nsfw': self.nsfw
-        }, name=name, reason=reason)
+        }, name=name)
 
-    async def edit(self, *, reason=None, **options):
+    async def edit(self, **options):
         """|coro|
 
         Edits the channel.
@@ -886,8 +871,6 @@ class CategoryChannel(discord.abc.GuildChannel, Hashable):
             The new category's position.
         nsfw: :class:`bool`
             To mark the category as NSFW or not.
-        reason: Optional[:class:`str`]
-            The reason for editing this category. Shows up on the audit log.
         overwrites: :class:`dict`
             A :class:`dict` of target (either a role or a member) to
             :class:`PermissionOverwrite` to apply to the channel.
@@ -902,7 +885,7 @@ class CategoryChannel(discord.abc.GuildChannel, Hashable):
             Editing the category failed.
         """
 
-        await self._edit(options=options, reason=reason)
+        await self._edit(options=options)
 
     @utils.copy_doc(discord.abc.GuildChannel.move)
     async def move(self, **kwargs):
@@ -952,7 +935,7 @@ class CategoryChannel(discord.abc.GuildChannel, Hashable):
         ret.sort(key=lambda c: (c.position, c.id))
         return ret
 
-    async def create_text_channel(self, name, *, overwrites=None, reason=None, **options):
+    async def create_text_channel(self, name, *, overwrites=None, **options):
         """|coro|
 
         A shortcut method to :meth:`Guild.create_text_channel` to create a :class:`TextChannel` in the category.
@@ -962,9 +945,9 @@ class CategoryChannel(discord.abc.GuildChannel, Hashable):
         :class:`TextChannel`
             The channel that was just created.
         """
-        return await self.guild.create_text_channel(name, overwrites=overwrites, category=self, reason=reason, **options)
+        return await self.guild.create_text_channel(name, overwrites=overwrites, category=self, **options)
 
-    async def create_voice_channel(self, name, *, overwrites=None, reason=None, **options):
+    async def create_voice_channel(self, name, *, overwrites=None, **options):
         """|coro|
 
         A shortcut method to :meth:`Guild.create_voice_channel` to create a :class:`VoiceChannel` in the category.
@@ -974,9 +957,9 @@ class CategoryChannel(discord.abc.GuildChannel, Hashable):
         :class:`VoiceChannel`
             The channel that was just created.
         """
-        return await self.guild.create_voice_channel(name, overwrites=overwrites, category=self, reason=reason, **options)
+        return await self.guild.create_voice_channel(name, overwrites=overwrites, category=self, **options)
 
-    async def create_stage_channel(self, name, *, overwrites=None, reason=None, **options):
+    async def create_stage_channel(self, name, *, overwrites=None, **options):
         """|coro|
 
         A shortcut method to :meth:`Guild.create_stage_channel` to create a :class:`StageChannel` in the category.
@@ -988,7 +971,7 @@ class CategoryChannel(discord.abc.GuildChannel, Hashable):
         :class:`StageChannel`
             The channel that was just created.
         """
-        return await self.guild.create_stage_channel(name, overwrites=overwrites, category=self, reason=reason, **options)
+        return await self.guild.create_stage_channel(name, overwrites=overwrites, category=self, **options)
 
 class StoreChannel(discord.abc.GuildChannel, Hashable):
     """Represents a Discord guild store channel.
@@ -1067,12 +1050,12 @@ class StoreChannel(discord.abc.GuildChannel, Hashable):
         return self.nsfw
 
     @utils.copy_doc(discord.abc.GuildChannel.clone)
-    async def clone(self, *, name=None, reason=None):
+    async def clone(self, *, name=None):
         return await self._clone_impl({
             'nsfw': self.nsfw
-        }, name=name, reason=reason)
+        }, name=name)
 
-    async def edit(self, *, reason=None, **options):
+    async def edit(self, **options):
         """|coro|
 
         Edits the channel.
@@ -1094,8 +1077,6 @@ class StoreChannel(discord.abc.GuildChannel, Hashable):
         category: Optional[:class:`CategoryChannel`]
             The new category for this channel. Can be ``None`` to remove the
             category.
-        reason: Optional[:class:`str`]
-            The reason for editing this channel. Shows up on the audit log.
         overwrites: :class:`dict`
             A :class:`dict` of target (either a role or a member) to
             :class:`PermissionOverwrite` to apply to the channel.
@@ -1112,7 +1093,7 @@ class StoreChannel(discord.abc.GuildChannel, Hashable):
         HTTPException
             Editing the channel failed.
         """
-        await self._edit(options, reason=reason)
+        await self._edit(options)
 
 class DMChannel(discord.abc.Messageable, Hashable):
     """Represents a Discord direct message channel.
@@ -1149,10 +1130,7 @@ class DMChannel(discord.abc.Messageable, Hashable):
 
     def __init__(self, *, me, state, data):
         self._state = state
-        if 'recipients' in data:
-            self.recipient = state.store_user(data['recipients'][0])
-        else:
-            self.recipient = state.store_lazy_user(data['recipient_ids'][0])
+        self.recipient = state.store_user(data['recipients'][0])
         self.me = me
         self.id = int(data['id'])
 
@@ -1278,10 +1256,7 @@ class GroupChannel(discord.abc.Messageable, Hashable):
         self.name = data.get('name')
 
         try:
-            if 'recipients' in data:
-                self.recipients = [self._state.store_user(u) for u in data['recipients']]
-            else:
-                self.recipients = [self._state.store_lazy_user(u) for u in data['recipient_ids']]
+            self.recipients = [self._state.store_user(u) for u in data['recipients']]
         except KeyError:
             pass
 
@@ -1387,7 +1362,6 @@ class GroupChannel(discord.abc.Messageable, Hashable):
 
         return base
 
-    @utils.deprecated()
     async def add_recipients(self, *recipients):
         r"""|coro|
 
@@ -1397,8 +1371,6 @@ class GroupChannel(discord.abc.Messageable, Hashable):
         Attempting to add more ends up in an exception. To
         add a recipient to the group, you must have a relationship
         with the user of type :attr:`RelationshipType.friend`.
-
-        .. deprecated:: 1.7
 
         Parameters
         -----------
@@ -1417,13 +1389,10 @@ class GroupChannel(discord.abc.Messageable, Hashable):
         for recipient in recipients:
             await req(self.id, recipient.id)
 
-    @utils.deprecated()
     async def remove_recipients(self, *recipients):
         r"""|coro|
 
         Removes recipients from this group.
-
-        .. deprecated:: 1.7
 
         Parameters
         -----------
@@ -1442,13 +1411,10 @@ class GroupChannel(discord.abc.Messageable, Hashable):
         for recipient in recipients:
             await req(self.id, recipient.id)
 
-    @utils.deprecated()
     async def edit(self, **fields):
         """|coro|
 
         Edits the group.
-
-        .. deprecated:: 1.7
 
         Parameters
         -----------
