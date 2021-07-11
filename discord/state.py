@@ -425,7 +425,10 @@ class ConnectionState:
 
         # Guild parsing
         for member in data.get('merged_members', []):
-            member[0]['user'] = data['user']
+            try:
+                member[0]['user'] = data['user']
+            except IndexError:
+                pass
 
         for merged_member_list, guild_data in zip(data.get('merged_members', []), data.get('guilds', [])):
             guild_data['me'] = merged_member_list
