@@ -29,43 +29,6 @@ import json
 import logging
 import re
 
-log = logging.getLogger(__name__)
-
-async def get_build_number(session): # Thank you Discord-S.C.U.M
-    """Fetches client build number"""
-    try:
-        login_page_request = await session.request('get', 'https://discord.com/login', headers={'Accept-Encoding': 'gzip, deflate'}, timeout=10)
-        login_page = await login_page_request.text()
-        build_url = 'https://discord.com/assets/' + re.compile(r'assets/+([a-z0-9]+)\.js').findall(login_page)[-2] + '.js'
-        build_request = await session.request('get', build_url, headers={'Accept-Encoding': 'gzip, deflate'}, timeout=10)
-        build_file = await build_request.text()
-        build_index = build_file.find('buildNumber') + 14
-        return int(build_file[build_index:build_index + 5])
-    except:
-        log.warning('Could not fetch client build number.')
-        return 88863
-
-async def get_user_agent(session):
-    """Fetches the latest Windows 10/Chrome user-agent."""
-    try:
-        request = await session.request('get', 'https://jnrbsn.github.io/user-agents/user-agents.json', timeout=10)
-        response = json.loads(await request.text())
-        return response[0]
-    except:
-        log.warning('Could not fetch user-agent.')
-        return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.77 Safari/537.36'
-
-async def get_browser_version(session):
-    """Fetches the latest Windows 10/Chrome version."""
-    try:
-        request = await session.request('get', 'https://omahaproxy.appspot.com/all.json', timeout=10)
-        response = json.loads(await request.text())
-        if response[0]['versions'][4]['channel'] == 'stable':
-            return response[0]['versions'][4]['version']
-    except:
-        log.warning('Could not fetch browser version.')
-        return '91.0.4472.77'
-
 class ContextProperties: # Thank you Discord-S.C.U.M
     """Represents the Discord X-Context-Properties header.
 
@@ -116,7 +79,7 @@ class ContextProperties: # Thank you Discord-S.C.U.M
             return b64encode(json.dumps(data).encode()).decode('utf-8')
 
     @classmethod
-    def _from_empty(cls):
+    def _empty(cls):
         data = {}
         return cls(data)
 
