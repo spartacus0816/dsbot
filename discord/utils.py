@@ -37,11 +37,14 @@ from operator import attrgetter
 import json
 import re
 import warnings
+import logging
 
 from .errors import InvalidArgument
 
 DISCORD_EPOCH = 1420070400000
 MAX_ASYNCIO_SECONDS = 3456000
+
+log = logging.getLogger(__name__)
 
 class cached_property:
     def __init__(self, function):
@@ -556,3 +559,38 @@ def escape_mentions(text):
         The text with the mentions removed.
     """
     return re.sub(r'@(everyone|here|[!&]?[0-9]{17,20})', '@\u200b\\1', text)
+
+async def _get_build_number(session): # Thank you Discord-S.C.U.M
+    """Fetches client build number"""
+    try:
+        login_page_request = await session.request('get', 'https://discord.com/login', headers={'Accept-Encoding': 'gzip, deflate'}, timeout=10)
+        login_page = await login_page_request.text()
+        build_url = 'https://discord.com/assets/' + re.compile(r'assets/+([a-z0-9]+)\.js').findall(login_page)[-2] + '.js'
+        build_request = await session.request('get', build_url, headers={'Accept-Encoding': 'gzip, deflate'}, timeout=10)
+        build_file = await build_request.text()
+        build_index = build_file.find('buildNumber') + 14
+        return int(build_file[build_index:build_index + 5])
+    except:
+        log.warning('Could not fetch client build number.')
+        return 88863
+
+async def _get_user_agent(session):
+    """Fetches the latest Windows 10/Chrome user-agent."""
+    try:
+        request = await session.request('get', 'https://jnrbsn.github.io/user-agents/user-agents.json', timeout=10)
+        response = json.loads(await request.text())
+        return response[0]
+    except:
+        log.warning('Could not fetch user-agent.')
+        return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.77 Safari/537.36'
+
+async def _get_browser_version(session):
+    """Fetches the latest Windows 10/Chrome version."""
+    try:
+        request = await session.request('get', 'https://omahaproxy.appspot.com/all.json', timeout=10)
+        response = json.loads(await request.text())
+        if response[0]['versions'][4]['channel'] == 'stable':
+            return response[0]['versions'][4]['version']
+    except:
+        log.warning('Could not fetch browser version.')
+        return '91.0.4472.77'
