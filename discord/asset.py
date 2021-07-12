@@ -103,7 +103,7 @@ class Asset:
             raise InvalidArgument("static_format must be one of {}".format(VALID_STATIC_FORMATS))
 
         if object.banner is None:
-            return object.banner_color_url
+            return object.banner_colour_url
 
         if format is None:
             format = 'gif' if object.is_banner_animated() else static_format
@@ -114,11 +114,11 @@ class Asset:
             return cls(state, '/banners/{0.user.id}/{0.banner}.{1}?size={2}'.format(object, format, size))
 
     @classmethod
-    def _from_user_banner_color(cls, state, object):
-        if object.banner_color is None:
+    def _from_user_banner_colour(cls, state, object):
+        if object.banner_colour is None:
             return
         else:
-            return cls(state, '/get/{0}/300x60'.format(object.banner_color[1:]), banner_color=True)
+            return cls(state, '/get/{0}/300x60'.format(str(object.banner_colour)[1:]), banner_color=True)
 
     @classmethod
     def _from_icon(cls, state, object, path, *, format='webp', size=1024):

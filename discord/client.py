@@ -52,6 +52,7 @@ from .object import Object
 from .backoff import ExponentialBackoff
 from .webhook import Webhook
 from .iterators import GuildIterator
+from .colour import Colour
 
 log = logging.getLogger(__name__)
 
@@ -1389,7 +1390,9 @@ class Client:
                        premium_since=utils.parse_time(since),
                        mutual_guilds=mutual_guilds,
                        user=User(data=user, state=state),
-                       connected_accounts=data['connected_accounts'], bio=data['user']['bio'], banner=data['user']['banner'], banner_color=data['user']['banner_color'], banner_colour=data['user']['banner_color'])
+                       connected_accounts=data['connected_accounts'], bio=data['user']['bio'], banner=data['user']['banner'], raw_banner_color=data['user']['banner_color'])
+
+    fetch_profile = fetch_user_profile
 
     async def fetch_channel(self, channel_id):
         """|coro|
