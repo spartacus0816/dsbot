@@ -1389,7 +1389,7 @@ class Client:
                        premium_since=utils.parse_time(since),
                        mutual_guilds=mutual_guilds,
                        user=User(data=user, state=state),
-                       connected_accounts=data['connected_accounts'], bio=user['bio'])
+                       connected_accounts=data['connected_accounts'], bio=data['user']['bio'], banner=data['user']['banner'], banner_color=data['user']['banner_color'], banner_colour=data['user']['banner_color'])
 
     async def fetch_channel(self, channel_id):
         """|coro|

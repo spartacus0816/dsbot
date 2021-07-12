@@ -35,11 +35,75 @@ from .colour import Colour
 from .asset import Asset
 from .settings import Settings
 
-class Profile(namedtuple('Profile', 'flags user mutual_guilds connected_accounts premium_since bio')):
+class Profile(namedtuple('Profile', 'flags user mutual_guilds connected_accounts premium_since bio banner banner_color banner_colour')):
     __slots__ = ()
+
+    def __repr__():
+        return '<Profile user={0.user} mutual_guilds={0.mutual_guilds} bio={0.bio}>'.format(self)
 
     def mutual_friends(self):
         return self.user.mutual_friends()
+
+    @property
+    def banner_url(self):
+        """:class:`Asset`: Returns an :class:`Asset` for the banner the user has.
+
+        If the user does not have a banner, the banner color is returned instead.
+
+        This is equivalent to calling :meth:`banner_url_as` with
+        the default parameters (i.e. webp/gif detection and a size of 1024).
+        """
+        return self.banner_url_as(format=None, size=1024)
+
+    def is_banner_animated(self):
+        """:class:`bool`: Indicates if the user has an animated banner."""
+        return bool(self.banner and self.banner.startswith('a_'))
+
+    def banner_url_as(self, *, format=None, static_format='webp', size=1024):
+        """Returns an :class:`Asset` for the banner the user has.
+
+        If the user does not have a banner, the banner color is returned instead.
+
+        The format must be one of 'webp', 'jpeg', 'jpg', 'png' or 'gif', and
+        'gif' is only valid for animated banner. The size must be a power of
+        2 between 16 and 4096.
+
+        Parameters
+        -----------
+        format: Optional[:class:`str`]
+            The format to attempt to convert the avatar to.
+            If the format is ``None``, then it is automatically
+            detected into either 'gif' or static_format depending on the
+            banner being animated or not.
+        static_format: Optional[:class:`str`]
+            Format to attempt to convert only non-animated banners to.
+            Defaults to 'webp'
+        size: :class:`int`
+            The size of the image to display.
+
+        Raises
+        ------
+        InvalidArgument
+            Bad image format passed to ``format`` or ``static_format``, or
+            invalid ``size``.
+
+        Returns
+        --------
+        :class:`Asset`
+            The resulting CDN asset.
+        """
+        return Asset._from_user_banner(self.user._state, self, format=format, static_format=static_format, size=size)
+
+    @property
+    def banner_color_url(self):
+        """:class:`Asset`: Returns an :class:`Asset` for the banner color the user has.
+
+        This is equivalent to calling :meth:`banner_url_as` with
+        the default parameters (i.e. webp/gif detection and a size of 1024).
+        """
+        return Asset._from_user_banner_color(self.user._state, self)
+
+    banner_colour_url = banner_color_url
 
     @property
     def nitro(self):
@@ -312,6 +376,10 @@ class ClientUser(BaseUser):
         The user's 'about me' field.
     avatar: Optional[:class:`str`]
         The avatar hash the user has. Could be ``None``.
+    banner: Optional[:class:`str`]
+        The banner hash the user has. Could be ``None``.
+    banner_color: :class:`str`
+        The banner color the user has. Could be ``None`` if default.
     bot: :class:`bool`
         Specifies if the user is a bot account.
     system: :class:`bool`
@@ -338,7 +406,7 @@ class ClientUser(BaseUser):
         The user's client settings.
     """
     __slots__ = BaseUser.__slots__ + \
-                ('settings', 'bio', 'phone', 'email', 'locale', '_flags', 'verified', 'mfa_enabled',
+                ('settings', 'bio', 'banner', 'banner_color', 'banner_colour', 'phone', 'email', 'locale', '_flags', 'verified', 'mfa_enabled',
                  'premium', 'premium_type', '_relationships', '__weakref__')
 
     def __init__(self, *, state, data):
@@ -360,6 +428,8 @@ class ClientUser(BaseUser):
         self.premium = data.get('premium', False)
         self.premium_type = try_enum(PremiumType, data.get('premium_type', None))
         self.bio = data.get('bio')
+        self.banner = data.get('banner')
+        self.banner_color = self.banner_colour = data.get('banner_color')
 
     def get_relationship(self, user_id):
         """Retrieves the :class:`Relationship` if applicable.
@@ -675,6 +745,67 @@ class ClientUser(BaseUser):
         self.settings = settings = Settings(data=data, state=self._state)
         return settings
 
+    @property
+    def banner_url(self):
+        """:class:`Asset`: Returns an :class:`Asset` for the banner the user has.
+
+        If the user does not have a banner, the banner color is returned instead.
+
+        This is equivalent to calling :meth:`banner_url_as` with
+        the default parameters (i.e. webp/gif detection and a size of 1024).
+        """
+        return self.banner_url_as(format=None, size=1024)
+
+    def is_banner_animated(self):
+        """:class:`bool`: Indicates if the user has an animated banner."""
+        return bool(self.banner and self.banner.startswith('a_'))
+
+    def banner_url_as(self, *, format=None, static_format='webp', size=1024):
+        """Returns an :class:`Asset` for the banner the user has.
+
+        If the user does not have a banner, the banner color is returned instead.
+
+        The format must be one of 'webp', 'jpeg', 'jpg', 'png' or 'gif', and
+        'gif' is only valid for animated banner. The size must be a power of
+        2 between 16 and 4096.
+
+        Parameters
+        -----------
+        format: Optional[:class:`str`]
+            The format to attempt to convert the avatar to.
+            If the format is ``None``, then it is automatically
+            detected into either 'gif' or static_format depending on the
+            banner being animated or not.
+        static_format: Optional[:class:`str`]
+            Format to attempt to convert only non-animated banners to.
+            Defaults to 'webp'
+        size: :class:`int`
+            The size of the image to display.
+
+        Raises
+        ------
+        InvalidArgument
+            Bad image format passed to ``format`` or ``static_format``, or
+            invalid ``size``.
+
+        Returns
+        --------
+        :class:`Asset`
+            The resulting CDN asset.
+        """
+        return Asset._from_user_banner(self._state, self, format=format, static_format=static_format, size=size, user=True)
+
+    @property
+    def banner_color_url(self):
+        """:class:`Asset`: Returns an :class:`Asset` for the banner color the user has.
+
+        This is equivalent to calling :meth:`banner_url_as` with
+        the default parameters (i.e. webp/gif detection and a size of 1024).
+        """
+        return Asset._from_user_banner_color(self._state, self)
+
+    banner_colour_url = banner_color_url
+
     def disable_account(self):
         """|coro|
 
@@ -736,7 +867,7 @@ class User(BaseUser, discord.abc.Messageable):
         Specifies if the user is a system user (i.e. represents Discord officially).
     """
 
-    __slots__ = BaseUser.__slots__ + ('__weakref__',)
+    __slots__ = BaseUser.__slots__ + ('__weakref__', 'banner')
 
     def __repr__(self):
         return '<User id={0.id} name={0.name!r} discriminator={0.discriminator!r} bot={0.bot}>'.format(self)
@@ -936,4 +1067,4 @@ class User(BaseUser, discord.abc.Messageable):
                        premium_since=parse_time(since),
                        mutual_guilds=mutual_guilds,
                        user=self,
-                       connected_accounts=data['connected_accounts'], bio=data['user'].get('bio', ''))
+                       connected_accounts=data['connected_accounts'], bio=data['user']['bio'], banner=data['user']['banner'], banner_color=data['user']['banner_color'], banner_colour=data['user']['banner_color'])

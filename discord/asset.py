@@ -61,13 +61,16 @@ class Asset:
 
             Returns the hash of the asset.
     """
-    __slots__ = ('_state', '_url')
+    __slots__ = ('BASE', '_state', '_url')
 
-    BASE = 'https://cdn.discordapp.com'
-
-    def __init__(self, state, url=None):
+    def __init__(self, state, url=None, *, banner_color=False):
         self._state = state
         self._url = url
+
+        if banner_color:
+            self.BASE = 'https://singlecolorimage.com'
+        else:
+            self.BASE = 'https://cdn.discordapp.com'
 
     @classmethod
     def _from_avatar(cls, state, user, *, format=None, static_format='webp', size=1024):
@@ -87,6 +90,35 @@ class Asset:
             format = 'gif' if user.is_avatar_animated() else static_format
 
         return cls(state, '/avatars/{0.id}/{0.avatar}.{1}?size={2}'.format(user, format, size))
+
+    @classmethod
+    def _from_user_banner(cls, state, object, *, format=None, static_format='webp', size=1024, user=False):
+        if not utils.valid_icon_size(size):
+            raise InvalidArgument("size must be a power of 2 between 16 and 4096")
+        if format is not None and format not in VALID_AVATAR_FORMATS:
+            raise InvalidArgument("format must be None or one of {}".format(VALID_AVATAR_FORMATS))
+        if format == "gif" and not object.is_avatar_animated():
+            raise InvalidArgument("non animated banners do not support gif format")
+        if static_format not in VALID_STATIC_FORMATS:
+            raise InvalidArgument("static_format must be one of {}".format(VALID_STATIC_FORMATS))
+
+        if object.banner is None:
+            return object.banner_color_url
+
+        if format is None:
+            format = 'gif' if object.is_banner_animated() else static_format
+
+        if user:
+            return cls(state, '/banners/{0.id}/{0.banner}.{1}?size={2}'.format(object, format, size))
+        else:
+            return cls(state, '/banners/{0.user.id}/{0.banner}.{1}?size={2}'.format(object, format, size))
+
+    @classmethod
+    def _from_user_banner_color(cls, state, object):
+        if object.banner_color is None:
+            return
+        else:
+            return cls(state, '/get/{0}/300x60'.format(object.banner_color[1:]), banner_color=True)
 
     @classmethod
     def _from_icon(cls, state, object, path, *, format='webp', size=1024):
