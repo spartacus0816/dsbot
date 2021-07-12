@@ -40,6 +40,7 @@ from .permissions import Permissions
 from .enums import Status, try_enum
 from .colour import Colour
 from .object import Object
+from .asset import Asset
 
 class VoiceState:
     """Represents a Discord user's voice state.
@@ -555,6 +556,58 @@ class Member(discord.abc.Messageable, _BaseUser):
     def voice(self):
         """Optional[:class:`VoiceState`]: Returns the member's current voice state."""
         return self.guild._voice_state_for(self._user.id)
+
+    @property
+    def guild_avatar_url(self):
+        """:class:`Asset`: Returns an :class:`Asset` for the guild avatar the user has.
+
+        If the user does not have a guild avatar, an asset for
+        the user avatar is returned instead.
+
+        This is equivalent to calling :meth:`guild_avatar_url_as` with
+        the default parameters (i.e. webp/gif detection and a size of 1024).
+        """
+        return self.guild_avatar_url_as(format=None, size=1024)
+
+    def is_guild_avatar_animated(self):
+        """:class:`bool`: Indicates if the user has an animated guild avatar."""
+        return bool(self.guild_avatar and self.guild_avatar.startswith('a_'))
+
+    def guild_avatar_url_as(self, *, format=None, static_format='webp', size=1024):
+        """Returns an :class:`Asset` for the guild avatar the user has.
+
+        If the user does not have a guild avatar, an asset for
+        the user avatar is returned instead.
+
+        The format must be one of 'webp', 'jpeg', 'jpg', 'png' or 'gif', and
+        'gif' is only valid for animated avatars. The size must be a power of 2
+        between 16 and 4096.
+
+        Parameters
+        -----------
+        format: Optional[:class:`str`]
+            The format to attempt to convert the avatar to.
+            If the format is ``None``, then it is automatically
+            detected into either 'gif' or static_format depending on the
+            avatar being animated or not.
+        static_format: Optional[:class:`str`]
+            Format to attempt to convert only non-animated avatars to.
+            Defaults to 'webp'
+        size: :class:`int`
+            The size of the image to display.
+
+        Raises
+        ------
+        InvalidArgument
+            Bad image format passed to ``format`` or ``static_format``, or
+            invalid ``size``.
+
+        Returns
+        --------
+        :class:`Asset`
+            The resulting CDN asset.
+        """
+        return Asset._from_guild_avatar(self._state, self, format=format, static_format=static_format, size=size)
 
     async def ban(self, **kwargs):
         """|coro|

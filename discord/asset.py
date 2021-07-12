@@ -92,6 +92,25 @@ class Asset:
         return cls(state, '/avatars/{0.id}/{0.avatar}.{1}?size={2}'.format(user, format, size))
 
     @classmethod
+    def _from_guild_avatar(cls, state, member, *, format=None, static_format='webp', size=1024):
+        if not utils.valid_icon_size(size):
+            raise InvalidArgument("size must be a power of 2 between 16 and 4096")
+        if format is not None and format not in VALID_AVATAR_FORMATS:
+            raise InvalidArgument("format must be None or one of {}".format(VALID_AVATAR_FORMATS))
+        if format == "gif" and not member.is_guild_avatar_animated():
+            raise InvalidArgument("non animated avatars do not support gif format")
+        if static_format not in VALID_STATIC_FORMATS:
+            raise InvalidArgument("static_format must be one of {}".format(VALID_STATIC_FORMATS))
+
+        if member.guild_avatar is None:
+            return member.avatar_url
+
+        if format is None:
+            format = 'gif' if member.is_guild_avatar_animated() else static_format
+
+        return cls(state, '/guilds/{0.guild.id}/users/{0.id}/avatars/{0.guild_avatar}.{1}?size={2}'.format(member, format, size))
+
+    @classmethod
     def _from_user_banner(cls, state, object, *, format=None, static_format='webp', size=1024, user=False):
         if not utils.valid_icon_size(size):
             raise InvalidArgument("size must be a power of 2 between 16 and 4096")
