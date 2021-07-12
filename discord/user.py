@@ -35,7 +35,7 @@ from .colour import Colour
 from .asset import Asset
 from .settings import Settings
 
-class Profile(namedtuple('Profile', 'flags user mutual_guilds connected_accounts premium_since bio banner banner_color banner_colour')):
+class Profile(namedtuple('Profile', 'flags user mutual_guilds connected_accounts premium_since bio banner raw_banner_color')):
     __slots__ = ()
 
     def __repr__():
@@ -95,15 +95,25 @@ class Profile(namedtuple('Profile', 'flags user mutual_guilds connected_accounts
         return Asset._from_user_banner(self.user._state, self, format=format, static_format=static_format, size=size)
 
     @property
-    def banner_color_url(self):
-        """:class:`Asset`: Returns an :class:`Asset` for the banner color the user has.
+    def banner_colour(self):
+        """:class:`Colour`: Returns the banner colour"""
+        try:
+            return Colour(int(f'0x{self.raw_banner_color[1:]}', 0))
+        except TypeError:
+            return
+
+    banner_color = banner_colour
+
+    @property
+    def banner_colour_url(self):
+        """:class:`Asset`: Returns an :class:`Asset` for the banner colour the user has.
 
         This is equivalent to calling :meth:`banner_url_as` with
         the default parameters (i.e. webp/gif detection and a size of 1024).
         """
-        return Asset._from_user_banner_color(self.user._state, self)
+        return Asset._from_user_banner_colour(self.user._state, self)
 
-    banner_colour_url = banner_color_url
+    banner_color_url = banner_colour_url
 
     @property
     def nitro(self):
@@ -406,7 +416,7 @@ class ClientUser(BaseUser):
         The user's client settings.
     """
     __slots__ = BaseUser.__slots__ + \
-                ('settings', 'bio', 'banner', 'banner_color', 'banner_colour', 'phone', 'email', 'locale', '_flags', 'verified', 'mfa_enabled',
+                ('settings', 'bio', 'banner', '_banner_color', 'phone', 'email', 'locale', '_flags', 'verified', 'mfa_enabled',
                  'premium', 'premium_type', '_relationships', '__weakref__')
 
     def __init__(self, *, state, data):
@@ -429,7 +439,7 @@ class ClientUser(BaseUser):
         self.premium_type = try_enum(PremiumType, data.get('premium_type', None))
         self.bio = data.get('bio')
         self.banner = data.get('banner')
-        self.banner_color = self.banner_colour = data.get('banner_color')
+        self._banner_color = data.get('banner_color')
 
     def get_relationship(self, user_id):
         """Retrieves the :class:`Relationship` if applicable.
@@ -796,15 +806,25 @@ class ClientUser(BaseUser):
         return Asset._from_user_banner(self._state, self, format=format, static_format=static_format, size=size, user=True)
 
     @property
-    def banner_color_url(self):
-        """:class:`Asset`: Returns an :class:`Asset` for the banner color the user has.
+    def banner_colour(self):
+        """:class:`Colour`: Returns the banner colour"""
+        try:
+            return Colour(int(f'0x{self._banner_color[1:]}', 0))
+        except TypeError:
+            return
+
+    banner_color = banner_colour
+
+    @property
+    def banner_colour_url(self):
+        """:class:`Asset`: Returns an :class:`Asset` for the banner colour the user has.
 
         This is equivalent to calling :meth:`banner_url_as` with
         the default parameters (i.e. webp/gif detection and a size of 1024).
         """
-        return Asset._from_user_banner_color(self._state, self)
+        return Asset._from_user_banner_colour(self._state, self)
 
-    banner_colour_url = banner_color_url
+    banner_color_url = banner_colour_url
 
     def disable_account(self):
         """|coro|
@@ -1067,4 +1087,4 @@ class User(BaseUser, discord.abc.Messageable):
                        premium_since=parse_time(since),
                        mutual_guilds=mutual_guilds,
                        user=self,
-                       connected_accounts=data['connected_accounts'], bio=data['user']['bio'], banner=data['user']['banner'], banner_color=data['user']['banner_color'], banner_colour=data['user']['banner_color'])
+                       connected_accounts=data['connected_accounts'], bio=data['user']['bio'], banner=data['user']['banner'], raw_banner_color=data['user']['banner_color'])
