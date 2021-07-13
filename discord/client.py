@@ -53,6 +53,7 @@ from .backoff import ExponentialBackoff
 from .webhook import Webhook
 from .iterators import GuildIterator
 from .colour import Colour
+from .appinfo import AppInfo
 
 log = logging.getLogger(__name__)
 
@@ -141,22 +142,26 @@ class Client:
         If not given, defaults to cache as much as possible.
 
         .. versionadded:: 1.5
-    fetch_offline_members: :class:`bool`
-        A deprecated alias of ``chunk_guilds_at_startup``.
     chunk_guilds_at_startup: :class:`bool`
         Indicates if :func:`.on_ready` should be delayed to chunk all guilds
         at start-up if necessary. This operation is incredibly slow for large
         amounts of guilds. The default is ``True``.
 
         .. versionadded:: 1.5
-    guild_subscribe_at_startup: :class:`bool`
+    subscribe_guilds: :class:`bool`
         Indicates whether the client should loop through and subscribe to all
         member ranges for each guild, effectively getting the entire viewable
         member list. Offline members are not retrieved for large guilds, as
-        the client does not have access to them.
+        the client does not have access to them. Note that this is also done
+        for any joined guilds. You can set this to ``False`` to do your subscribing
+        manually (:meth:`Guild.subscribe`).
 
         .. versionadded:: 1.9
+    subscribe_max_online_count :class:`int`
+        Guilds with an online count higher than this are not subscribed. This
+        can be done manually using :meth:`Guild.subscribe`.
 
+        .. versionadded:: 1.9
     status: Optional[:class:`.Status`]
         A status to start your presence with upon logging on to Discord.
     activity: Optional[:class:`.BaseActivity`]
@@ -377,40 +382,6 @@ class Client:
         print('Ignoring exception in {}'.format(event_method), file=sys.stderr)
         traceback.print_exc()
 
-    @utils.deprecated('Guild.chunk')
-    async def request_offline_members(self, *guilds):
-        r"""|coro|
-
-        Requests previously offline members from the guild to be filled up
-        into the :attr:`.Guild.members` cache. This function is usually not
-        called. It should only be used if you have the ``fetch_offline_members``
-        parameter set to ``False``.
-
-        When the client logs on and connects to the websocket, Discord does
-        not provide the library with offline members if the number of members
-        in the guild is larger than 250. You can check if a guild is large
-        if :attr:`.Guild.large` is ``True``.
-
-        .. warning::
-
-            This method is deprecated. Use :meth:`Guild.chunk` instead.
-
-        Parameters
-        -----------
-        \*guilds: :class:`.Guild`
-            An argument list of guilds to request offline members for.
-
-        Raises
-        -------
-        :exc:`.InvalidArgument`
-            If any guild is unavailable in the collection.
-        """
-        if any(g.unavailable for g in guilds):
-            raise InvalidArgument('An unavailable guild was passed.')
-
-        for guild in guilds:
-            await self._connection.chunk_guild(guild)
-
     # hooks
 
     async def _call_before_identify_hook(self, *, initial=False):
@@ -436,8 +407,6 @@ class Client:
             Whether this IDENTIFY is the first initial IDENTIFY.
         """
 
-        #if not initial:
-            #await asyncio.sleep(5.0)
         pass
 
     # login state management
@@ -569,7 +538,7 @@ class Client:
                 # This is apparently what the official Discord client does.
                 ws_params.update(sequence=self.ws.sequence, resume=True, session=self.ws.session_id)
 
-    async def close(self, logout=False):
+    async def close(self, *, logout=False):
         """|coro|
 
         Closes the connection to Discord.
@@ -1014,7 +983,10 @@ class Client:
         await self.ws.change_presence(activity=activity, status=status, afk=afk)
 
         if status:
-            await self._connection.user.edit_settings(status=status_enum)
+            try:
+                await self._connection.user.edit_settings(status=status_enum)
+            except:
+                pass
 
         for guild in self._connection.guilds:
             me = guild.me
@@ -1170,8 +1142,10 @@ class Client:
 
     async def join_guild(self, invite):
         """|coro|
-        
+
         Joines a guild.
+
+        .. versionadded:: 1.9
 
         Parameters
         ----------
@@ -1194,7 +1168,6 @@ class Client:
 
         if not isinstance(invite, Invite):
             invite = await self.fetch_invite(invite, with_counts=False, with_expiration=False)
-            #raise TypeError('invite must be Invite not {0.__class__!r}'.format(invite))
 
         data = await self.http.join_guild(invite.code, guild_id=invite.guild.id, channel_id=invite.channel.id, channel_type=invite.channel.type.value)
 
@@ -1213,6 +1186,8 @@ class Client:
 
             You cannot leave a guild that you own, you must delete it instead.
 
+        .. versionadded:: 1.9
+
         Parameters
         ----------
         guild_id:
@@ -1223,7 +1198,7 @@ class Client:
         :exc:`.HTTPException`
             Leaving the guild failed.
         """
-        
+
         await self.http.leave_guild(guild_id)
 
     # Invite management
@@ -1251,6 +1226,7 @@ class Client:
             Whether to include expiration information in the invite. This fills the
             :attr:`.Invite.expires_at` fields.
 
+            ..versionadded:: 1.9
         Raises
         -------
         :exc:`.NotFound`
@@ -1295,6 +1271,28 @@ class Client:
         await self.http.delete_invite(invite_id)
 
     # Miscellaneous stuff
+
+    async def fetch_applications(self, *, with_team_applications=True):
+        """|coro|
+
+        Gets a List[:class:`AppInfo`] of all your applications.
+
+        .. versionadded:: 1.9
+
+        Parameters
+        ----------
+        with_team_applications: :class:`bool`
+            Whether to include team applications.
+
+        Raises
+        -------
+        :exc:`.HTTPException`
+            Fetching applications failed.
+        """
+
+        data = await self.http.get_applications(with_team_applications=with_team_applications)
+
+        return [AppInfo(self._connection, app) for app in data]
 
     async def fetch_widget(self, guild_id):
         """|coro|

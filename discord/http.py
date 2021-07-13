@@ -37,9 +37,9 @@ import weakref
 
 import aiohttp
 
+from .context_properties import ContextProperties
 from .enums import RelationshipAction
 from .errors import HTTPException, Forbidden, NotFound, LoginFailure, DiscordServerError, GatewayNotFound
-from .extras import get_build_number, get_user_agent, get_browser_version, ContextProperties
 from .gateway import DiscordClientWebSocketResponse
 from . import utils
 
@@ -120,9 +120,9 @@ class HTTPClient:
             self.__session = aiohttp.ClientSession(connector=self.connector, ws_response_class=DiscordClientWebSocketResponse)
 
     async def startup_tasks(self):
-        self.user_agent = await get_user_agent(self.__session)
-        self.client_build_number = await get_build_number(self.__session)
-        self.browser_version = await get_browser_version(self.__session)
+        self.user_agent = await utils._get_user_agent(self.__session)
+        self.client_build_number = await utils._get_build_number(self.__session)
+        self.browser_version = await utils._get_browser_version(self.__session)
         self.super_properties = {
             'os': 'Windows',
             'browser': 'Chrome',
@@ -209,10 +209,8 @@ class HTTPClient:
             if isinstance(context_properties, ContextProperties):
                 headers['X-Context-Properties'] = context_properties.value
 
-        if 'super_properties_to_track' in kwargs:
-            super_properties_to_track = kwargs.pop('super_properties_to_track')
-            if super_properties_to_track:
-                headers['X-Track'] = headers.pop('X-Super-Properties')
+        if kwargs.pop('super_properties_to_track', False):
+            headers['X-Track'] = headers.pop('X-Super-Properties')
 
         kwargs['headers'] = headers
 
@@ -367,7 +365,7 @@ class HTTPClient:
         payload = {
             'recipients': recipients
         }
-        context_properties = ContextProperties._from_empty()
+        context_properties = ContextProperties._empty() # {}
 
         return self.request(Route('POST', '/users/@me/channels'), json=payload, context_properties=context_properties)
 
@@ -396,7 +394,7 @@ class HTTPClient:
         payload = {
             'recipients': [user_id]
         }
-        context_properties = ContextProperties._from_empty() # {}
+        context_properties = ContextProperties._empty() # {}
 
         return self.request(Route('POST', '/users/@me/channels'), json=payload, context_properties=context_properties)
 
@@ -589,9 +587,10 @@ class HTTPClient:
         params = {
             'delete_message_days': delete_message_days,
         }
-
         if reason:
-            params['reason'] = reason
+            # thanks aiohttp
+            r.url = '{0.url}?reason={1}'.format(r, _uriquote(reason))
+
 
         return self.request(r, params=params)
 
@@ -615,7 +614,7 @@ class HTTPClient:
 
         if 'password' in fields:
             payload['password'] = fields['password']
-        
+
         if 'username' in fields:
             payload['username'] = fields['username']
 
@@ -638,7 +637,7 @@ class HTTPClient:
 
     def change_my_nickname(self, guild_id, nickname):
         r = choice((
-            Route('PATCH', '/guilds/{guild_id}/members/@me/nick', guild_id=guild_id), 
+            Route('PATCH', '/guilds/{guild_id}/members/@me/nick', guild_id=guild_id),
             Route('PATCH', '/guilds/{guild_id}/members/@me', guild_id=guild_id)
         ))
         payload = {
@@ -655,11 +654,11 @@ class HTTPClient:
 
         return self.request(r, json=payload)
 
-    def edit_my_voice_state(self, guild_id, payload): # TODO
+    def edit_my_voice_state(self, guild_id, payload):
         r = Route('PATCH', '/guilds/{guild_id}/voice-states/@me', guild_id=guild_id)
         return self.request(r, json=payload)
 
-    def edit_voice_state(self, guild_id, user_id, payload): # TODO
+    def edit_voice_state(self, guild_id, user_id, payload):
         r = Route('PATCH', '/guilds/{guild_id}/voice-states/{user_id}', guild_id=guild_id, user_id=user_id)
         return self.request(r, json=payload)
 
@@ -840,7 +839,7 @@ class HTTPClient:
     def prune_members(self, guild_id, days, compute_prune_count, roles):
         payload = {
             'days': days,
-            'compute_prune_count': compute_prune_count
+            'compute_prune_count': str(compute_prune_count).lower()
         }
         if roles:
             payload['include_roles'] = ', '.join(roles)
@@ -1099,16 +1098,24 @@ class HTTPClient:
         }
         return self.request(r, json=payload, context_properties=context_properties)
 
+    def change_friend_nickname(self, user_id, nickname):
+        payload = {
+            'nickname': nickname
+        }
+
+        return self.request(Route('PATCH', '/users/@me/relationships/{user_id}', user_id=user_id), payload=payload)
+
     # Misc
 
     async def get_gateway(self, *, encoding='json', v=6, zlib=True):
-        # The gateway URL hasn't changed for over 5 years. And, 
-        # the official clients are going to stop using it. Sooooo...
+        # The gateway URL hasn't changed for over 5 years. And,
+        # the official clients are going to stop using it. Sooooo:
 
         #try:
             #data = await self.request(Route('GET', '/gateway'))
         #except HTTPException as exc:
             #raise GatewayNotFound() from exc
+
         self.zlib = zlib
         if zlib:
             value = 'wss://gateway.discord.gg?encoding={0}&v={1}&compress=zlib-stream'
@@ -1120,7 +1127,7 @@ class HTTPClient:
         params = {
             'with_mutual_guilds': str(with_mutual_guilds).lower()
         }
-        
+
         return self.request(Route('GET', '/users/{user_id}/profile', user_id=user_id), params=params)
 
     def get_mutual_friends(self, user_id):
@@ -1150,6 +1157,12 @@ class HTTPClient:
 
     def edit_settings(self, **payload):
         return self.request(Route('PATCH', '/users/@me/settings'), json=payload)
+
+    def get_applications(self, *, with_team_applications=True):
+        params = {
+            'with_team_applications': str(with_team_applications).lower()
+        }
+        return self.request(Route('GET', '/applications'), params=params, super_properties_to_track=True)
 
     def disable_account(self):
         return self.request(Route('POST', '/users/@me/disable'))

@@ -63,6 +63,7 @@ class Relationship:
         HTTPException
             Deleting the relationship failed.
         """
+
         if self.type is RelationshipType.friend:
             await self._state.http.remove_relationship(self.user.id, action=RelationshipAction.unfriend)
         elif self.type is RelationshipType.blocked:
@@ -75,7 +76,7 @@ class Relationship:
     async def accept(self):
         """|coro|
 
-        Accepts the relationship request. Only applicable for 
+        Accepts the relationship request. Only applicable for
         type :class:`RelationshipType.incoming_request`.
 
         Raises
@@ -85,3 +86,13 @@ class Relationship:
         """
 
         await self._state.http.add_relationship(self.user.id, action=RelationshipAction.accept_request)
+
+    def change_nickname(self, nick):
+        """|coro|
+
+        Changes a relationship's nickname. Only applicable for
+        type :class:`RelationshipType.friend`.
+        """
+
+        return self._state.http.change_friend_nickname(self.user.id, nick)
+        self.nickname = nick

@@ -51,7 +51,7 @@ from .member import Member
 from .role import Role
 from .enums import ChannelType, try_enum, Status, UnavailableGuildType
 from . import utils
-from .flags import MemberCacheFlags
+from .flags import GuildSubscriptionOptions, MemberCacheFlags
 from .object import Object
 from .invite import Invite
 from .settings import Settings
@@ -147,13 +147,17 @@ class ConnectionState:
                 status = str(status)
 
         chunk_guilds = options.get('chunk_guilds_at_startup', True)
-        subscribe_guilds = options.get('subscribe_guilds', True)
-        max_subscribe_count = options.get('subscribe_max_online_count', 10000) # TODO
+        subscription_options = options.get('guild_subscription_options')
+        if subscription_options is None:
+            subscription_options = GuildSubscriptionOptions.default()
+        else:
+            if not isinstance(subscription_options, GuildSubscriptionOptions):
+                raise TypeError('subscription_options parameter must be GuildSubscriptionOptions not %r' % type(subscription_options))
 
         self._chunk_guilds = chunk_guilds
-        self._subscribe_guilds = subscribe_guilds
+        self._subscription_options = subscription_options
 
-        cache_flags = options.get('member_cache_flags', None)
+        cache_flags = options.get('member_cache_flags')
         if cache_flags is None:
             cache_flags = MemberCacheFlags.all()
         else:
@@ -393,7 +397,7 @@ class ConnectionState:
             states = []
             for guild in self._guilds.values():
                 await self.request_guild(guild.id)
-                
+
                 if self._guild_needs_chunking(guild):
                     future = await self.chunk_guild(guild, wait=False)
                     states.append((guild, future))
@@ -593,6 +597,7 @@ class ConnectionState:
             log.debug('PRESENCE_UPDATE referencing an unknown guild ID: %s. Discarding.', guild_id)
             return
 
+        activities = data.get('activities')
         user = data['user']
         member_id = int(user['id'])
         member = guild.get_member(member_id)
@@ -601,6 +606,7 @@ class ConnectionState:
             if 'username' not in user:
                 # sometimes we receive 'incomplete' member data post-removal.
                 # skip these useless cases.
+                print(f'Discarded presence update for guild {guild_id}, {member_id} - activities: {activities}')
                 return
 
             member, old_member = Member._from_presence_update(guild=guild, data=data, state=self)
@@ -615,6 +621,7 @@ class ConnectionState:
             if member.id != self.self_id and flags._online_only and member.raw_status == 'offline':
                 guild._remove_member(member)
 
+        print(f'Presence update for guild {guild_id}, {member_id} - activities: {activities}')
         self.dispatch('member_update', old_member, member)
 
     def parse_user_update(self, data):

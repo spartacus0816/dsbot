@@ -71,7 +71,7 @@ To install the development version, do the following (not recommended):
 
 .. code:: sh
 
-    $ git clone https://github.com/dolfies/discord.py-self
+    $ git clone --single-branch --branch development https://github.com/dolfies/discord.py-self
     $ cd discord.py-self
     $ python3 -m pip install -U .[voice]
 

@@ -346,7 +346,13 @@ class Guild(Hashable):
                 if factory:
                     self._add_channel(factory(guild=self, data=c, state=self._state))
 
-    async def subscribe(self, op_ranges=None):
+    async def subscribe(self, _op_ranges=None):
+        """|coro|
+
+        Abuses the member sidebar to scrape all members*. 
+
+        .. versionadded:: 1.9
+        """
         self._subscribing = True
 
         state = self._state
@@ -360,8 +366,8 @@ class Guild(Hashable):
                 return None
 
         async def get_ranges(amount):
-            if op_ranges:
-                return op_ranges
+            if _op_ranges:
+                return _op_ranges
             ranges = []
             for i in range(1, int(amount / 100) + 1):
                 min = i * 100
@@ -378,7 +384,10 @@ class Guild(Hashable):
 
         def get_current_subscribe_ranges(number):
             try:
-                current = [[0, 99], ranges[(number * 2)], ranges[(number * 2) + 1]]
+                if len(ranges[number]) >= 2: # TODO TEST this crap!!!
+                    current = [[0, 99], ranges[(number * 2)], ranges[(number * 2) + 1]]
+                else:
+                    current = [[0, 99], ranges[(number * 2)]]
                 return current
             except:
                 return None
@@ -847,6 +856,8 @@ class Guild(Hashable):
 
         A subscribed guild means that opcode 14s have been sent for every range
         available. Note that every 100 new members, a new one has to be sent.
+
+        .. versionadded:: 1.9
         """
         try:
             return not self._subscribing
@@ -2297,7 +2308,7 @@ class Guild(Hashable):
         limit = min(100, limit or 5)
         return await self._state.query_members(self, query=query, limit=limit, user_ids=user_ids, presences=presences, cache=cache)
 
-    async def change_voice_state(self, *, channel, self_mute=False, self_deaf=False, self_video=None, preferred_region=''):
+    async def change_voice_state(self, *, channel, self_mute=False, self_deaf=False, self_video=None, self_stream=None, preferred_region=''):
         """|coro|
 
         Changes client's voice state in the guild.
@@ -2313,7 +2324,13 @@ class Guild(Hashable):
         self_deaf: :class:`bool`
             Indicates if the client should be self-deafened.
         self_video :class:`bool`
-            Indicates if the client is screen-sharing (do not use).
+            Indicates if the client is using video. Untested & unconfirmed
+            (do not use).
+
+            .. versionadded:: 1.9
+        self_stream :class:`bool`
+            Indicates if the client is sharing its screen via the Go Live
+            feature. Untested & unconfirmed (do not use).
 
             .. versionadded:: 1.9
         """
@@ -2325,20 +2342,20 @@ class Guild(Hashable):
         if channel_id and preferred_region == '':
             preferred_region = state.preferred_region
 
-        await ws.voice_state(self.id, channel_id, self_mute, self_deaf, self_video, preferred_region=preferred_region)
+        await ws.voice_state(self.id, channel_id, self_mute, self_deaf, self_video, self_stream, preferred_region=preferred_region)
 
     async def mute(self, *, duration=None):
         """|coro|
 
         Mutes the guild.
 
+        .. versionadded:: 1.9
+
         Parameters
         -----------
         duration: Optional[:class:`int`]
             The duration (in hours) of the mute. Defaults to
             ``None`` for an indefinite mute.
-
-        .. versionadded:: 1.9
 
         """
 
