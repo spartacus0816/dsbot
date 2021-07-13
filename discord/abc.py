@@ -849,8 +849,12 @@ class GuildChannel:
             invite.
         validate: Unknown
             Purpose is unknown.
+
+            .. versionadded:: 1.9
         target_type: Unknown
             Purpose is unknown.
+
+            .. versionadded:: 1.9
 
         Raises
         -------

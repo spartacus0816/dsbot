@@ -291,6 +291,8 @@ class Invite(Hashable):
     expires_at: :class:`datetime.datetime`
         A datetime object denoting when the invite expires.
         A value of ``0`` indicates that it doesn't expire.
+
+            .. versionadded:: 1.9
     """
 
     __slots__ = ('max_age', 'code', 'guild', 'revoked', 'created_at', 'uses',
@@ -386,6 +388,8 @@ class Invite(Hashable):
         """|coro|
 
         Uses the invite (joins the guild)
+
+        .. versionadded:: 1.9
 
         Raises
         ------

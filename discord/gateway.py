@@ -491,7 +491,7 @@ class DiscordWebSocket:
         except KeyError:
             log.debug('Unknown event %s.', event)
         else:
-            log.debug(f'Parsing event {event}')
+            log.debug('Parsing event %s.', event)
             func(data)
 
         # remove the dispatched listeners
@@ -655,7 +655,7 @@ class DiscordWebSocket:
 
         await self.send_as_json(payload)
 
-    async def voice_state(self, guild_id=None, channel_id=None, self_mute=False, self_deaf=False, self_video=None, *, preferred_region=None):
+    async def voice_state(self, guild_id=None, channel_id=None, self_mute=False, self_deaf=False, self_video=None, self_stream=None, *, preferred_region=None):
         payload = {
             'op': self.VOICE_STATE,
             'd': {
@@ -668,6 +668,8 @@ class DiscordWebSocket:
 
         if self_video is not None:
             payload['d']['self_video'] = self_video
+        if self_stream is not None:
+            payload['d']['self_stream'] = self_stream
         if preferred_region is not None:
             payload['d']['preferred_region'] = preferred_region
 

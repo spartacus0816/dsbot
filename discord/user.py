@@ -926,7 +926,7 @@ class User(BaseUser, discord.abc.Messageable):
         except NotFound:
             return None
 
-    async def set_note(self, note=None):
+    async def set_note(self, note):
         """|coro|
 
         Sets the user's note.
