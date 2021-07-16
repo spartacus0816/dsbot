@@ -47,7 +47,7 @@ class GatewayNotFound(DiscordException):
     """An exception that is usually thrown when the gateway hub
     for the :class:`Client` websocket is not found."""
     def __init__(self):
-        message = 'The gateway to connect to discord was not found.'
+        message = 'The gateway to connect to Discord was not found.'
         super(GatewayNotFound, self).__init__(message)
 
 def flatten_error_dict(d, key=''):

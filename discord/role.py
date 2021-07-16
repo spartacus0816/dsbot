@@ -268,7 +268,7 @@ class Role(Hashable):
             raise InvalidArgument("Cannot move default role")
 
         if self.position == position:
-            return  # Save discord the extra request.
+            return  # Save Discord the extra request.
 
         http = self._state.http
 

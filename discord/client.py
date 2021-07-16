@@ -148,18 +148,9 @@ class Client:
         amounts of guilds. The default is ``True``.
 
         .. versionadded:: 1.5
-    subscribe_guilds: :class:`bool`
-        Indicates whether the client should loop through and subscribe to all
-        member ranges for each guild, effectively getting the entire viewable
-        member list. Offline members are not retrieved for large guilds, as
-        the client does not have access to them. Note that this is also done
-        for any joined guilds. You can set this to ``False`` to do your subscribing
-        manually (:meth:`Guild.subscribe`).
-
-        .. versionadded:: 1.9
-    subscribe_max_online_count :class:`int`
-        Guilds with an online count higher than this are not subscribed. This
-        can be done manually using :meth:`Guild.subscribe`.
+    guild_subscription_options: :class:`GuildSubscriptionOptions`
+        Allows for control over the library's auto-subscribing.
+        If not given, defaults to values I define as sane.
 
         .. versionadded:: 1.9
     status: Optional[:class:`.Status`]

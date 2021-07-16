@@ -38,11 +38,11 @@ def show_version():
 
     entries.append('- Python v{0.major}.{0.minor}.{0.micro}-{0.releaselevel}'.format(sys.version_info))
     version_info = discord.version_info
-    entries.append('- discord.py v{0.major}.{0.minor}.{0.micro}-{0.releaselevel}'.format(version_info))
+    entries.append('- discord.py-self v{0.major}.{0.minor}.{0.micro}-{0.releaselevel}'.format(version_info))
     if version_info.releaselevel != 'final':
         pkg = pkg_resources.get_distribution('discord.py')
         if pkg:
-            entries.append('    - discord.py pkg_resources: v{0}'.format(pkg.version))
+            entries.append('    - discord.py-self pkg_resources: v{0}'.format(pkg.version))
 
     entries.append('- aiohttp v{0.__version__}'.format(aiohttp))
     uname = platform.uname()

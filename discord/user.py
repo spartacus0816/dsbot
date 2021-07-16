@@ -209,6 +209,8 @@ class BaseUser(_BaseUser):
             'avatar': self.avatar,
             'discriminator': self.discriminator,
             'bot': self.bot,
+            'system': self.system,
+            'public_flags': self._public_flags
         }
 
     @property

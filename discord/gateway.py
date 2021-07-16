@@ -245,7 +245,7 @@ class DiscordWebSocket:
         a connection issue.
     DM
         Send only. Used to get DM features.
-    LAZY_GUILD_REQUEST
+    GUILD_SUBSCRIBE
         Send only. Subscribes you to guilds. Responds with GUILD_MEMBER_LIST_UPDATE sync.
     gateway
         The gateway we are currently connected to.
@@ -565,7 +565,7 @@ class DiscordWebSocket:
                 raise ReconnectWebSocket() from None
             else:
                 log.info('Websocket closed with %s, cannot reconnect.', code)
-                raise ConnectionClosed(self.sockets, code=code) from None
+                raise ConnectionClosed(self.socket, code=code) from None
 
     async def send(self, data):
         await self._rate_limiter.block()
@@ -634,24 +634,20 @@ class DiscordWebSocket:
 
         await self.send_as_json(payload)
 
-    async def request_chunks(self, guild_id, query=None, *, limit, user_ids=None, presences=True, nonce=None):
+    async def request_chunks(self, guild_ids, query=None, *, limit=None, user_ids=None, presences=True, nonce=None):
         payload = {
             'op': self.REQUEST_MEMBERS,
             'd': {
-                'guild_id': guild_id,
+                'guild_id': guild_ids,
+                'query': query,
+                'limit': limit,
                 'presences': presences,
-                'limit': limit
+                'user_ids': user_ids,
             }
         }
 
         if nonce:
             payload['d']['nonce'] = nonce
-
-        if user_ids:
-            payload['d']['user_ids'] = user_ids
-
-        if query is not None:
-            payload['d']['query'] = query
 
         await self.send_as_json(payload)
 
@@ -769,9 +765,9 @@ class DiscordVoiceWebSocket:
     @classmethod
     async def from_client(cls, client, *, resume=False):
         """Creates a voice websocket for the :class:`VoiceClient`."""
-        gateway = 'wss://' + client.endpoint + '/?v=4'
+        gateway = 'wss://' + client.endpoint + '/?v=5'
         http = client._state.http
-        socket = await http.ws_connect(gateway, compress=15)
+        socket = await http.ws_connect(gateway, compress=15, host=client.endpoint)
         ws = cls(socket, loop=client.loop)
         ws.gateway = gateway
         ws._connection = client
