@@ -1319,7 +1319,7 @@ class Client:
         """|coro|
 
         Retrieves a :class:`~discord.User` based on their ID.
-        This calls :meth:`fetch_user_profile`. You do not have to
+        This uses the /profile endpoint. You do not have to
         share any guilds with the user to get this information,
         however many operations do require that you do.
 
@@ -1340,10 +1340,10 @@ class Client:
         :class:`~discord.User`
             The user you requested.
         """
-        profile = await self.fetch_user_profile(user_id)
+        profile = await self.fetch_user_profile(user_id, with_mutuals=False, with_note=False)
         return profile.user
 
-    async def fetch_user_profile(self, user_id):
+    async def fetch_user_profile(self, user_id, *, with_mutuals=True, with_note=True):
         """|coro|
 
         Gets an arbitrary user's profile.
@@ -1352,9 +1352,18 @@ class Client:
         ------------
         user_id: :class:`int`
             The ID of the user to fetch their profile for.
+        with_mutuals: :class:`bool`
+            Whether to fetch mutual guilds and friends.
+            This fills in :attr:`mutual_guilds` & :attr:`mutual_friends`.
+        with_note: :class:`bool`
+            Whether to fetch the user's note.
+            This fills in :attr:`note`.
+            Notes can be fetched after the fact with :meth:`Profile.fetch_note`.
 
         Raises
         -------
+        :exc:`.NotFound`
+            A user with this ID does not exist.
         :exc:`.Forbidden`
             Not allowed to fetch profiles.
         :exc:`.HTTPException`
@@ -1367,19 +1376,18 @@ class Client:
         """
 
         state = self._connection
-        data = await self.http.get_user_profile(user_id)
+        data = await self.http.get_user_profile(user_id, with_mutual_guilds=with_mutuals)
 
-        def transform(d):
-            return state._get_guild(int(d['id']))
+        if with_mutuals:
+            data['mutual_friends'] = await self.http.get_mutual_friends(user_id)
+        if with_note:
+            try:
+                note = await self.http.get_note(user_id)
+                data['note'] = note['note']
+            except NotFound: # 404 means no note
+                data['note'] = None
 
-        since = data.get('premium_since')
-        mutual_guilds = list(filter(None, map(transform, data.get('mutual_guilds', []))))
-        user = data['user']
-        return Profile(flags=user.get('flags', 0),
-                       premium_since=utils.parse_time(since),
-                       mutual_guilds=mutual_guilds,
-                       user=User(data=user, state=state),
-                       connected_accounts=data['connected_accounts'], bio=data['user']['bio'], banner=data['user']['banner'], raw_banner_color=data['user']['banner_color'])
+        return Profile(state, data)
 
     fetch_profile = fetch_user_profile
 

@@ -35,14 +35,81 @@ from .colour import Colour
 from .asset import Asset
 from .settings import Settings
 
-class Profile(namedtuple('Profile', 'flags user mutual_guilds connected_accounts premium_since bio banner raw_banner_color')):
-    __slots__ = ()
+class Profile:
+    def __init__(self, state, data):
+        self._state = state
 
-    def __repr__():
-        return '<Profile user={0.user} mutual_guilds={0.mutual_guilds} bio={0.bio}>'.format(self)
+        user = data['user']
+        self.flags = user.pop('flags', 0) # TODO figure out the differences and parse them
+        bio = user.pop('bio')
+        self.bio = bio if bio else None
+        self.banner = user.pop('banner')
+        self._banner_color = user.pop('banner_color')
+        self.user = User(data=user, state=state)
 
-    def mutual_friends(self):
-        return self.user.mutual_friends()
+        self.premium_since = parse_time(data['premium_since'])
+        self.connected_accounts = data['connected_accounts']
+
+        if 'note' in data:
+            self.note = data['note']
+        if 'mutual_guilds' in data:
+            self.mutual_guilds = self._parse_mutual_guilds(data['mutual_guilds'])
+        if 'mutual_friends' in data:
+            self.mutual_friends = self._parse_mutual_friends(data['mutual_friends'])
+
+    def __str__(self):
+        return '{0.name}#{0.discriminator}'.format(self.user)
+
+    def __repr__(self):
+        return '<Profile user={0.user!r} bio={0.bio}>'.format(self)
+
+    def _parse_mutual_guilds(self, mutual_guilds):
+        state = self._state
+
+        def get_guild(guild):
+            return state._get_guild(int(guild['id']))
+
+        return list(filter(None, map(get_guild, mutual_guilds)))
+
+    def _parse_mutual_friends(self, mutual_friends):
+        state = self._state
+        return [state.store_user(friend) for friend in mutual_friends]
+
+    async def fetch_note(self):
+        """|coro|
+
+        Gets the user's note.
+
+        Raises
+        -------
+        HTTPException
+            Getting the note failed.
+
+        Returns
+        --------
+        :class:`str`
+            The user's note.
+        """
+
+        try:
+            note = await self._state.http.get_note(self.user.id)
+            return note['note']
+        except NotFound:
+            return None
+
+    async def set_note(self, note):
+        """|coro|
+
+        Sets the user's note.
+
+        Raises
+        -------
+        HTTPException
+            Setting the note failed.
+        """
+
+        await self._state.http.set_note(self.user.id, note=note)
+        self.note = note
 
     @property
     def banner_url(self):
@@ -98,7 +165,7 @@ class Profile(namedtuple('Profile', 'flags user mutual_guilds connected_accounts
     def banner_colour(self):
         """:class:`Colour`: Returns the banner colour"""
         try:
-            return Colour(int(f'0x{self.raw_banner_color[1:]}', 0))
+            return Colour(int(f'0x{self._banner_color[1:]}', 0))
         except TypeError:
             return
 
@@ -146,9 +213,9 @@ class Profile(namedtuple('Profile', 'flags user mutual_guilds connected_accounts
         return self._has_flag(UserFlags.hypesquad)
 
     @property
-    def hypesquad_houses(self):
+    def hypesquad_house(self):
         flags = (UserFlags.hypesquad_bravery, UserFlags.hypesquad_brilliance, UserFlags.hypesquad_balance)
-        return [house for house, flag in zip(HypeSquadHouse, flags) if self._has_flag(flag)]
+        return [house for house, flag in zip(HypeSquadHouse, flags) if self._has_flag(flag)][0]
 
     @property
     def team_user(self):
@@ -907,40 +974,6 @@ class User(BaseUser, discord.abc.Messageable):
         """
         return self._state._get_private_channel_by_user(self.id)
 
-    def note(self):
-        """|coro|
-
-        Returns the user's note.
-
-        Raises
-        -------
-        HTTPException
-            Getting the note failed.
-
-        Returns
-        -------
-        :class:`str`
-            The note. Could be ``None``.
-        """
-
-        try:
-            return self._state.http.get_note(self.id)
-        except NotFound:
-            return None
-
-    async def set_note(self, note):
-        """|coro|
-
-        Sets the user's note.
-
-        Raises
-        -------
-        HTTPException
-            Setting the note failed.
-        """
-
-        await self._state.http.set_note(self.id, note=note)
-
     async def create_dm(self):
         """|coro|
 
@@ -986,7 +1019,27 @@ class User(BaseUser, discord.abc.Messageable):
         """
         state = self._state
         mutuals = await state.http.get_mutual_friends(self.id)
-        return [User(state=state, data=friend) for friend in mutuals]
+        return [state.store_user(friend) for friend in mutuals]
+
+    async def mutual_guilds(self):
+        """|coro|
+
+        Gets all mutual friends of this user.
+
+        Raises
+        -------
+        Forbidden
+            Not allowed to get mutual friends of this user.
+        HTTPException
+            Getting mutual friends failed.
+
+        Returns
+        -------
+        List[:class:`User`]
+            The users that are mutual friends.
+        """
+        profile = await self.profile()
+        return profile.mutual_guilds
 
     def is_friend(self):
         """:class:`bool`: Checks if the user is your friend."""
@@ -1080,13 +1133,11 @@ class User(BaseUser, discord.abc.Messageable):
         state = self._state
         data = await state.http.get_user_profile(self.id)
 
-        def transform(d):
-            return state._get_guild(int(d['id']))
+        data['mutual_friends'] = await state.http.get_mutual_friends(self.id)
+        try:
+            note = await state.http.get_note(self.id)
+            data['note'] = note['note']
+        except NotFound: # 404 means no note
+            data['note'] = None
 
-        since = data.get('premium_since')
-        mutual_guilds = list(filter(None, map(transform, data.get('mutual_guilds', []))))
-        return Profile(flags=data['user'].get('flags', 0),
-                       premium_since=parse_time(since),
-                       mutual_guilds=mutual_guilds,
-                       user=self,
-                       connected_accounts=data['connected_accounts'], bio=data['user']['bio'], banner=data['user']['banner'], raw_banner_color=data['user']['banner_color'])
+        return Profile(state, data)

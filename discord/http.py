@@ -1145,7 +1145,7 @@ class HTTPClient:
         payload = {
             'note': note or ''
         }
-        return self.request(Route('PUT', '/users/@me/notes/{user_id}', user_id=user_id))
+        return self.request(Route('PUT', '/users/@me/notes/{user_id}', user_id=user_id), json=payload)
 
     def change_hypesquad_house(self, house_id):
         payload = {'house_id': house_id}
