@@ -476,19 +476,21 @@ class GuildSubscriptionOptions:
     """
 
     def __init__(self, **kwargs):
+        if not kwargs:
+            raise TypeError('No arguments passed')
         auto_subscribe = kwargs.get('auto_subscribe', True)
 
         concurrent_guilds = kwargs.get('concurrent_guilds', 3)
-            if not isinstance(concurrent_guilds, int):
-                raise TypeError('concurrent_guilds must be an int')
-            if concurrent_guilds < 1:
-                raise TypeError('concurrent_guilds must be positive')
+        if not isinstance(concurrent_guilds, int):
+            raise TypeError('concurrent_guilds must be an int')
+        if concurrent_guilds < 1:
+            raise TypeError('concurrent_guilds must be positive')
 
         max_online_count = kwargs.get('max_online_count', 10000)
-            if not isinstance(concurrent_guilds, int):
-                raise TypeError('max_online_count must be an int')
-            if concurrent_guilds < 1:
-                raise TypeError('max_online_count must be positive')
+        if not isinstance(max_online_count, int):
+            raise TypeError('max_online_count must be an int')
+        if max_online_count < 1:
+            raise TypeError('max_online_count must be positive')
 
         self.auto_subscribe = auto_subscribe
         self.concurrent_guilds = concurrent_guilds
@@ -497,7 +499,7 @@ class GuildSubscriptionOptions:
     @classmethod
     def default(cls):
         """A factory method that creates a :class:`GuildSubscriptionOptions` with default values."""
-        return cls()
+        return cls(auto_subscribe=True, concurrent_guilds=3, max_online_count=10000)
 
     @classmethod
     def disabled(cls):

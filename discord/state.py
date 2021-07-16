@@ -147,14 +147,14 @@ class ConnectionState:
                 status = str(status)
 
         chunk_guilds = options.get('chunk_guilds_at_startup', True)
+        self._chunk_guilds = chunk_guilds
+
         subscription_options = options.get('guild_subscription_options')
         if subscription_options is None:
             subscription_options = GuildSubscriptionOptions.default()
         else:
             if not isinstance(subscription_options, GuildSubscriptionOptions):
                 raise TypeError('subscription_options parameter must be GuildSubscriptionOptions not %r' % type(subscription_options))
-
-        self._chunk_guilds = chunk_guilds
         self._subscription_options = subscription_options
 
         cache_flags = options.get('member_cache_flags')
@@ -252,7 +252,14 @@ class ConnectionState:
         user_id = int(data['id'])
         try:
             user = self._users[user_id]
-            user._update(data)
+            # We update the cache using the data,
+            # since we aren't guaranteed to have
+            # events for that user.
+            # However, sometimes the data only has an id.
+            try:
+                user._update(data)
+            except KeyError:
+                pass
             return user
         except KeyError:
             user = User(state=self, data=data)
@@ -373,7 +380,7 @@ class ConnectionState:
 
     async def chunker(self, guild_id, query='', limit=0, presences=True, *, nonce=None):
         ws = self._get_websocket(guild_id) # This is ignored upstream
-        await ws.request_chunks(guild_id, query=query, limit=limit, presences=presences, nonce=nonce)
+        await ws.request_chunks([guild_id], query=query, limit=limit, presences=presences, nonce=nonce)
 
     async def query_members(self, guild, query, limit, user_ids, cache, presences):
         guild_id = guild.id
@@ -386,7 +393,7 @@ class ConnectionState:
 
         try:
             # start the query operation
-            await ws.request_chunks(guild_id, query=query, limit=limit, user_ids=user_ids, presences=presences, nonce=request.nonce)
+            await ws.request_chunks([guild_id], query=query, limit=limit, user_ids=user_ids, presences=presences, nonce=request.nonce)
             return await asyncio.wait_for(request.wait(), timeout=30.0)
         except asyncio.TimeoutError:
             log.warning('Timed out waiting for chunks with query %r and limit %d for guild_id %d', query, limit, guild_id)
@@ -418,31 +425,50 @@ class ConnectionState:
             self._ready_task = None
 
     def parse_ready(self, data):
+        # Before parsing, we wait for READY_SUPPLEMENTAL.
+        # This has voice state objects, as well as a few other goodies.
+        self._ready_data = data
+
+    def parse_ready_supplemental(self, data):
         if self._ready_task is not None:
             self._ready_task.cancel()
 
         self.clear()
 
+        # Merge with READY data
+        extra_data = data
+        data = self._ready_data
+
+        for guild_data, guild_extra, merged_members, merged_me, merged_presences in zip(
+            data.get('guilds', []),
+            extra_data.get('guilds', []),
+            extra_data.get('merged_members', []),
+            data.get('merged_members', []),
+            extra_data['merged_presences'].get('guilds', [])
+        ):
+            guild_data['voice_states'] = guild_extra.get('voice_states', [])
+            guild_data['merged_members'] = merged_me
+            guild_data['merged_members'].extend(merged_members)
+            guild_data['merged_presences'] = merged_presences
+            # There's also a friends key that has presence data for your friends.
+            # Parsing that would require a redesign of the Relationship class ;-;.
+
         # Self parsing
         self.user = user = ClientUser(state=self, data=data['user'])
         self._users[user.id] = user
 
-        # Guild parsing
-        for member in data.get('merged_members', []):
-            try:
-                member[0]['user'] = data['user']
-            except IndexError:
-                pass
-
-        for merged_member_list, guild_data in zip(data.get('merged_members', []), data.get('guilds', [])):
-            guild_data['me'] = merged_member_list
-            self._add_guild_from_data(guild_data, from_ready=True)
-
         # Temp user parsing
-        temp_users = {}
+        temp_users = {user.id: user._to_minimal_user_json()}
         for u in data.get('users', []):
             u_id = int(u['id'])
             temp_users[u_id] = u
+
+        # Guild parsing
+        for guild_data in data.get('guilds', []):
+            for member in guild_data['merged_members']:
+                if 'user' not in member:
+                    member['user'] = temp_users.get(int(member.pop('user_id')))
+            self._add_guild_from_data(guild_data, from_ready=True)
 
         # Relationship parsing
         for relationship in data.get('relationships', []):
@@ -606,7 +632,6 @@ class ConnectionState:
             if 'username' not in user:
                 # sometimes we receive 'incomplete' member data post-removal.
                 # skip these useless cases.
-                print(f'Discarded presence update for guild {guild_id}, {member_id} - activities: {activities}')
                 return
 
             member, old_member = Member._from_presence_update(guild=guild, data=data, state=self)
@@ -621,7 +646,6 @@ class ConnectionState:
             if member.id != self.self_id and flags._online_only and member.raw_status == 'offline':
                 guild._remove_member(member)
 
-        print(f'Presence update for guild {guild_id}, {member_id} - activities: {activities}')
         self.dispatch('member_update', old_member, member)
 
     def parse_user_update(self, data):

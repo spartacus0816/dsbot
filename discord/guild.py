@@ -187,6 +187,7 @@ class Guild(Hashable):
     }
 
     def __init__(self, *, data, state):
+        self._roles = {}
         self._channels = {}
         self._members = {}
         self._voice_states = {}
@@ -289,11 +290,17 @@ class Guild(Hashable):
         self.banner = guild.get('banner')
         self.unavailable = guild.get('unavailable', False)
         self.id = int(guild['id'])
-        self._roles = {}
+
         state = self._state # speed up attribute access
+
         for r in guild.get('roles', []):
             role = Role(guild=self, data=r, state=state)
             self._roles[role.id] = role
+
+        for c in guild.get('channels', []):
+            factory, ch_type = _channel_factory(c['type'])
+            if factory:
+                self._add_channel(factory(guild=self, data=c, state=state))
 
         self.mfa_level = guild.get('mfa_level')
         self.emojis = tuple(map(lambda d: state.store_emoji(self, d), guild.get('emojis', [])))
@@ -313,38 +320,28 @@ class Guild(Hashable):
         self._public_updates_channel_id = utils._get_as_snowflake(guild, 'public_updates_channel_id')
         self._online_count = guild.get('online_count', None)
 
-        for mdata in guild.get('me', []):
-            member = Member(data=mdata, guild=self, state=state)
+        for mdata in guild.get('merged_members', []):
+            try:
+                member = Member(data=mdata, guild=self, state=state)
+            except KeyError:
+                continue
             self._add_member(member)
 
-        self._large = None if member_count is None else member_count >= 250
-        self._sync(guild)
+        empty_tuple = tuple()
+        for presence in guild.get('merged_presences', []):
+            user_id = int(presence['user_id'])
+            member = self.get_member(user_id)
+            if member is not None:
+                member._presence_update(presence, empty_tuple)
+
+        _large = None if member_count is None else member_count >= 250
+        self._large = guild.get('large', _large)
 
         self.owner_id = utils._get_as_snowflake(guild, 'owner_id')
         self.afk_channel = self.get_channel(utils._get_as_snowflake(guild, 'afk_channel_id'))
 
         for obj in guild.get('voice_states', []):
             self._update_voice_state(obj, int(obj['channel_id']))
-
-    def _sync(self, data):
-        try:
-            self._large = data['large']
-        except KeyError:
-            pass
-
-        empty_tuple = tuple()
-        for presence in data.get('presences', []):
-            user_id = int(presence['user']['id'])
-            member = self.get_member(user_id)
-            if member is not None:
-                member._presence_update(presence, empty_tuple)
-
-        if 'channels' in data:
-            channels = data['channels']
-            for c in channels:
-                factory, ch_type = _channel_factory(c['type'])
-                if factory:
-                    self._add_channel(factory(guild=self, data=c, state=self._state))
 
     async def subscribe(self, _op_ranges=None):
         """|coro|
