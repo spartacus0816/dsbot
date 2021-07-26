@@ -292,12 +292,13 @@ class Invite(Hashable):
         A datetime object denoting when the invite expires.
         A value of ``0`` indicates that it doesn't expire.
 
-            .. versionadded:: 1.9
+        .. versionadded:: 1.9
     """
 
     __slots__ = ('max_age', 'code', 'guild', 'revoked', 'created_at', 'uses',
                  'temporary', 'max_uses', 'inviter', 'channel', '_state',
-                 'approximate_member_count', 'approximate_presence_count', 'expires_at')
+                 'approximate_member_count', 'approximate_presence_count', 
+                 'expires_at', '_message_id')
 
     BASE = 'https://discord.gg'
 
@@ -319,9 +320,10 @@ class Invite(Hashable):
         inviter_data = data.get('inviter')
         self.inviter = None if inviter_data is None else self._state.store_user(inviter_data)
         self.channel = data.get('channel')
+        self._message_id = data.get('message_id')
 
     @classmethod
-    def from_incomplete(cls, *, state, data):
+    def from_incomplete(cls, *, state, data, message_id=None):
         try:
             guild_id = int(data['guild']['id'])
         except KeyError:
@@ -343,6 +345,9 @@ class Invite(Hashable):
         if guild is not None and not isinstance(guild, PartialInviteGuild):
             # Upgrade the partial data if applicable
             channel = guild.get_channel(channel_id) or channel
+
+        if message_id:
+            data['message_id'] = message_id
 
         data['guild'] = guild
         data['channel'] = channel
@@ -406,7 +411,8 @@ class Invite(Hashable):
         """
 
         state = self._state
-        data = await state.http.join_guild(self.code, guild_id=self.guild.id, channel_id=self.channel.id, channel_type=self.channel.type.value)
+        
+        data = await state.http.join_guild(self.code, guild_id=self.guild.id, channel_id=self.channel.id, channel_type=self.channel.type.value, message_id=self._message_id)
 
         new_member = data.get('new_member', False)
         if not new_member:

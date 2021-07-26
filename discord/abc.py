@@ -823,7 +823,6 @@ class GuildChannel:
 
         await self._state.http.bulk_channel_update(self.guild.id, payload)
 
-
     async def create_invite(self, **fields):
         """|coro|
 

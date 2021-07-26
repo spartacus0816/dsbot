@@ -32,7 +32,7 @@ import traceback
 
 import aiohttp
 
-from .user import User, Profile
+from .user import User, Profile, Note
 from .invite import Invite
 from .template import Template
 from .widget import Widget
@@ -150,7 +150,7 @@ class Client:
         .. versionadded:: 1.5
     guild_subscription_options: :class:`GuildSubscriptionOptions`
         Allows for control over the library's auto-subscribing.
-        If not given, defaults to values I define as sane.
+        If not given, defaults to "sane values".
 
         .. versionadded:: 1.9
     status: Optional[:class:`.Status`]
@@ -219,7 +219,7 @@ class Client:
 
     # internals
 
-    def _get_websocket(self, guild_id=None):
+    def _get_websocket(self):
         return self.ws
 
     def _get_state(self, **options):
@@ -437,7 +437,7 @@ class Client:
         """|coro|
 
         Logs out of Discord and closes all connections.
-        
+
         .. deprecated:: 1.7
 
         .. note::
@@ -537,9 +537,6 @@ class Client:
         if self._closed:
             return
 
-        if logout:
-            await self.http.logout()
-
         await self.http.close()
         self._closed = True
 
@@ -552,6 +549,9 @@ class Client:
 
         if self.ws is not None and self.ws.open:
             await self.ws.close(code=1000)
+
+        if logout:
+            await self.http.logout()
 
         self._ready.clear()
 
@@ -1232,7 +1232,7 @@ class Client:
         """
 
         invite_id = utils.resolve_invite(url)
-        data = await self.http.get_invite(invite_id, with_counts=with_counts)
+        data = await self.http.get_invite(invite_id, with_counts=with_counts, with_expiration=with_expiration)
         return Invite.from_incomplete(state=self._connection, data=data)
 
     async def delete_invite(self, invite):
@@ -1318,10 +1318,11 @@ class Client:
     async def fetch_user(self, user_id):
         """|coro|
 
-        Retrieves a :class:`~discord.User` based on their ID.
-        This uses the /profile endpoint. You do not have to
-        share any guilds with the user to get this information,
-        however many operations do require that you do.
+        Retrieves a :class:`.User` based on their ID.
+        This uses the profile endpoint.
+
+        You now need to share a guild/be friends with this user
+        to get this information.
 
         Parameters
         -----------
@@ -1332,18 +1333,20 @@ class Client:
         -------
         :exc:`.NotFound`
             A user with this ID does not exist.
+        :exc:`.Forbidden`
+            Not allowed to fetch this user.
         :exc:`.HTTPException`
             Fetching the user failed.
 
         Returns
         --------
-        :class:`~discord.User`
+        :class:`.User`
             The user you requested.
         """
-        profile = await self.fetch_user_profile(user_id, with_mutuals=False, with_note=False)
+        profile = await self.fetch_user_profile(user_id, with_mutuals=False, fetch_note=False)
         return profile.user
 
-    async def fetch_user_profile(self, user_id, *, with_mutuals=True, with_note=True):
+    async def fetch_user_profile(self, user_id, *, with_mutuals=True, fetch_note=True):
         """|coro|
 
         Gets an arbitrary user's profile.
@@ -1355,17 +1358,15 @@ class Client:
         with_mutuals: :class:`bool`
             Whether to fetch mutual guilds and friends.
             This fills in :attr:`mutual_guilds` & :attr:`mutual_friends`.
-        with_note: :class:`bool`
-            Whether to fetch the user's note.
-            This fills in :attr:`note`.
-            Notes can be fetched after the fact with :meth:`Profile.fetch_note`.
+        fetch_note: :class:`bool`
+            Whether to pre-fetch the user's note.
 
         Raises
         -------
         :exc:`.NotFound`
             A user with this ID does not exist.
         :exc:`.Forbidden`
-            Not allowed to fetch profiles.
+            Not allowed to fetch this profile.
         :exc:`.HTTPException`
             Fetching the profile failed.
 
@@ -1380,14 +1381,13 @@ class Client:
 
         if with_mutuals:
             data['mutual_friends'] = await self.http.get_mutual_friends(user_id)
-        if with_note:
-            try:
-                note = await self.http.get_note(user_id)
-                data['note'] = note['note']
-            except NotFound: # 404 means no note
-                data['note'] = None
 
-        return Profile(state, data)
+        profile = Profile(state, data)
+
+        if with_note:
+            await profile.note.fetch()
+
+        return profile
 
     fetch_profile = fetch_user_profile
 
@@ -1439,7 +1439,7 @@ class Client:
         Retrieves a :class:`.Webhook` with the specified ID.
 
         Raises
-        --------
+        -------
         :exc:`.HTTPException`
             Retrieving the webhook failed.
         :exc:`.NotFound`
@@ -1454,3 +1454,33 @@ class Client:
         """
         data = await self.http.get_webhook(webhook_id)
         return Webhook.from_state(data, state=self._connection)
+
+    async def fetch_notes(self):
+        """|coro|
+
+        Retrieves a list of :class:`Note` objects representing all your notes.
+
+        Raises
+        -------
+        :exc:`.HTTPException`
+            Retreiving the notes failed.
+        """
+        state = self._connection
+        data = await self.http.get_notes()
+        return [Note(state, int(id), note=note) for id, note in data.items()]
+
+    async def fetch_note(self, user_id):
+        """|coro|
+
+        Retrieves a :class:`Note` for the specified user ID.
+
+        Raises
+        -------
+        :exc:`.HTTPException`
+            Retreiving the note failed.
+        """
+        try:
+            data = await self.http.get_note(user_id)
+        except NotFound:
+            data = {'note': ''}
+        return Note(self._connection, int(user_id), note=data['note'])

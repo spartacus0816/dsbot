@@ -975,29 +975,43 @@ class ClientUser(BaseUser):
 
     banner_color_url = banner_colour_url
 
-    def disable_account(self):
+    def disable(self, password):
         """|coro|
 
-        Disables the client account.
+        Disables the client's account.
+
+        .. versionadded:: 1.9
+
+        Parameters
+        -----------
+        password :class:`str`
+            The current password of the user.
 
         Raises
         -------
         HTTPException
             Disabling the account failed.
         """
-        return self._state.http.disable_account()
+        return self._state.http.disable_account(password)
     
-    def delete_account(self):
+    def delete(self, password):
         """|coro|
 
-        Deletes the client account.
+        Deletes the client's account.
+
+        .. versionadded:: 1.9
+
+        Parameters
+        -----------
+        password :class:`str`
+            The current password of the user.
 
         Raises
         -------
         HTTPException
             Deleting the account failed.
         """
-        return self._state.http.delete_account()
+        return self._state.http.delete_account(password)
 
 class User(BaseUser, discord.abc.Messageable):
     """Represents a Discord user.

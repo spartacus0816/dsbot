@@ -462,7 +462,7 @@ class GuildSubscriptionOptions:
     Subscribing refers to abusing the member sidebar to scrape all* guild
     members. However, you can only request 200 members per OPCode 14.
 
-    Once you send a proper OPCode 14, Discord responds with a 
+    Once you send a proper OPCode 14, Discord responds with a
     GUILD_MEMBER_LIST_UPDATE. You then also get subsequent GUILD_MEMBER_LIST_UPDATEs
     that act (kind of) like GUILD_MEMBER_UPDATE/ADD/REMOVEs.
 
@@ -480,26 +480,29 @@ class GuildSubscriptionOptions:
             raise TypeError('No arguments passed')
         auto_subscribe = kwargs.get('auto_subscribe', True)
 
-        concurrent_guilds = kwargs.get('concurrent_guilds', 3)
+        concurrent_guilds = kwargs.get('concurrent_guilds', 2)
         if not isinstance(concurrent_guilds, int):
             raise TypeError('concurrent_guilds must be an int')
         if concurrent_guilds < 1:
             raise TypeError('concurrent_guilds must be positive')
 
-        max_online_count = kwargs.get('max_online_count', 10000)
-        if not isinstance(max_online_count, int):
-            raise TypeError('max_online_count must be an int')
-        if max_online_count < 1:
-            raise TypeError('max_online_count must be positive')
+        max_online = kwargs.get('max_online', 12000)
+        if not isinstance(max_online, int):
+            raise TypeError('max_online must be an int')
+        if max_online < 1:
+            raise TypeError('max_online must be positive')
 
         self.auto_subscribe = auto_subscribe
         self.concurrent_guilds = concurrent_guilds
-        self.max_online_count = max_online_count
+        self.max_online = max_online
+
+    def __repr__(self):
+        return '<GuildSubscriptionOptions auto_subscribe={0.auto_subscribe} concurrent_guilds={0.concurrent_guilds} max_online_count={0.max_online_count}' .format(self)
 
     @classmethod
     def default(cls):
         """A factory method that creates a :class:`GuildSubscriptionOptions` with default values."""
-        return cls(auto_subscribe=True, concurrent_guilds=3, max_online_count=10000)
+        return cls(auto_subscribe=True)
 
     @classmethod
     def disabled(cls):
@@ -507,10 +510,3 @@ class GuildSubscriptionOptions:
         return cls(auto_subscribe=False)
 
     off = disabled
-
-    @property
-    def _unlimited(self, *, premium=False):
-        if premium:
-            return self.max_online_count >= 800000 and self.concurrent_guilds >= 200
-        else:
-            return self.max_online_count >= 800000 and self.concurrent_guilds >= 100

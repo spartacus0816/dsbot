@@ -92,6 +92,18 @@ class Relationship:
 
         Changes a relationship's nickname. Only applicable for
         type :class:`RelationshipType.friend`.
+
+        Parameters
+        ----------
+        nick: :class:`str`
+            The nickname to change to.
+
+        Raises
+        -------
+        HTTPException
+            Changing the nickname failed.
+
+        .. versionadded:: 1.9
         """
 
         return self._state.http.change_friend_nickname(self.user.id, nick)

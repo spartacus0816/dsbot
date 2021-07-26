@@ -24,12 +24,13 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 """
 
-from asyncio import sleep
+import asyncio
 from datetime import datetime, timedelta
 import copy
 from collections import namedtuple
 import logging
 from math import ceil
+from termcolor import cprint # TODO REMOVE
 
 from . import utils
 from .role import Role
@@ -194,9 +195,6 @@ class Guild(Hashable):
         self._state = state
         self._from_data(data)
 
-        #if state._subscribe_guilds:
-        #state.loop.create_task(self.subscribe())
-
     def _add_channel(self, channel):
         self._channels[channel.id] = channel
 
@@ -274,9 +272,7 @@ class Guild(Hashable):
         return role
 
     def _from_data(self, guild):
-        # according to Stan, this is always available even if the guild is unavailable
-        # I don't have this guarantee when someone updates the guild.
-        member_count = guild.get('member_count', None)
+        member_count = guild.get('member_count')
         if member_count is not None:
             self._member_count = member_count
 
@@ -343,99 +339,154 @@ class Guild(Hashable):
         for obj in guild.get('voice_states', []):
             self._update_voice_state(obj, int(obj['channel_id']))
 
-    async def subscribe(self, _op_ranges=None):
+    async def subscribe(self, delay=0.25, op_ranges=None, ticket=None, max_online=None):
         """|coro|
 
-        Abuses the member sidebar to scrape all members*. 
+        Abuses the member sidebar to scrape all members*.
+
+        *Discord doesn't provide offline members for "large" guilds.
+        *If a guild doesn't have a channel (of any type) @everyone can view,
+        the subscribing currently fails. In the future, it'll pick the next
+        most-used role and look for a channel that role can view.
+
+        You can only request members from the sidebar in 100 member ranges, and
+        you can only specify up to 2 ranges per request.
+
+        Parameters
+        -----------
+        delay: Union[:class:`int`, :class:`float`]
+            Amount of time (in seconds) to wait before requesting the next 2 ranges.
+            Note: By default, we wait for the GUILD_MEMBER_LIST_UPDATE to arrive before
+            continuing. However, those arrive extremely fast so we need to add an extra
+            delay to try to avoid rate-limits.
+
+        Returns
+        --------
+        :class:`bool`
+            Whether the subscribing was successful.
 
         .. versionadded:: 1.9
         """
+
         self._subscribing = True
 
+        if ticket:
+            await ticket.acquire()
+
         state = self._state
-        ws = state._get_websocket(self.id)
+        ws = state._get_websocket()
 
-        async def get_amount():
-            try:
-                amount = int(ceil(self._member_count / 100.0)) * 100
-                return amount
-            except TypeError:
-                return None
+        def cleanup(*, successful):
+            if ticket:
+                ticket.release()
+            if successful:
+                self._subscribing = False
+            else:
+                del self._subscribing
 
-        async def get_ranges(amount):
-            if _op_ranges:
-                return _op_ranges
+        def get_channel():
+            for channel in self.channels:
+                perms = channel.overwrites_for(self.default_role)
+                if perms.view_channel is None:
+                    perms = self.default_role.permissions
+                if perms.view_channel:
+                    return channel.id
+            return # TODO: Check for a "member" role and do the above
+
+        def get_ranges():
+            online = ceil(self._online_count / 100.0) * 100
             ranges = []
-            for i in range(1, int(amount / 100) + 1):
+            for i in range(1, int(online / 100) + 1):
                 min = i * 100
                 max = min + 99
                 ranges.append([min, max])
             return ranges
 
-        async def get_channel():
-            for channel in self.channels:
-                perms = channel.permissions_for(self.me)
-                if perms.view_channel == True:
-                    return channel.id
-            return None
-
-        def get_current_subscribe_ranges(number):
+        def get_current_ranges(ranges):
             try:
-                if len(ranges[number]) >= 2: # TODO TEST this crap!!!
-                    current = [[0, 99], ranges[(number * 2)], ranges[(number * 2) + 1]]
-                else:
-                    current = [[0, 99], ranges[(number * 2)]]
+                current = [[0, 99]]
+                current.append(ranges.pop(0))
+                try:
+                    current.append(ranges.pop(0))
+                except IndexError:
+                    pass
                 return current
             except:
-                return None
+                return
 
-        amount = await get_amount()
-        if not amount:
-            log.warn('Guild %s subscribing failed (could not fetch member count).' % self.id)
-            return
-
-        channel_id = await get_channel()
+        channel_id = get_channel()
         if not channel_id:
             log.warn('Guild %s subscribing failed (no channels available).' % self.id)
-            return
+            cleanup(successful=False)
+            return False
 
-        ranges = await get_ranges(amount)
+        def predicate(data):
+            if int(data['guild_id']) == self.id:
+                return any((opdata.get('range') in ranges_to_send for opdata in data.get('ops', [])))
+
+        log.debug("Subscribing to [[0, 99]] ranges for guild %s." % self.id)
+        print("Subscribing to guild %s." % self.id)
+        ranges_to_send = [[0, 99]]
+        await ws.request_lazy_guild(self.id, channels={channel_id: ranges_to_send})
+
+        print(f"Waiting for response for ranges {ranges_to_send} (guild {self.id})...")
+        try:
+            await asyncio.wait_for(ws.wait_for('GUILD_MEMBER_LIST_UPDATE', predicate), timeout=60)
+        except asyncio.TimeoutError:
+            log.debug('Guild %s timed out waiting for subscribes.' % self.id)
+            cleanup(successful=False)
+            return False
+
+        for r in ranges_to_send:
+            if self._online_count in range(r[0], r[1]) or self.online_count < r[1]:
+                cprint(f'Finished subscribing {self.id}!!!', 'cyan')
+                cleanup(successful=True)
+                return True
+
+        if max_online:
+            if self.online_count > max_online:
+                cleanup(successful=False)
+                return False
+
+        ranges = op_ranges or get_ranges()
         if not ranges:
             log.warn('Guild %s subscribing failed (could not fetch ranges).' % self.id)
-            return
+            cleanup(successful=False)
+            return False
 
-        log.debug("Subscribing to guild %s." % self.id)
-        print("Subscribing to guild %s." % self.id)
-        await ws.request_lazy_guild(self.id, typing=True, activities=True, threads=True, channels={str(channel_id): [[0, 99]]})
-        state._current_subscribe_guilds.append(self.id)
-
-        print(f"Waiting for response for ranges [0, 99] (guild {self.id})...")
-        while self.id in state._current_subscribe_guilds:
-            continue
-
-        index = 0
         while self._subscribing:
-            ranges_to_send = get_current_subscribe_ranges(index)
-            index += 1
+            ranges_to_send = get_current_ranges(ranges)
 
             if not ranges_to_send:
-                self._subscribing = False
-                break
-
-            state._current_subscribe_guilds.append(self.id)
+                cprint(f'Finished subscribing {self.id}!!!', 'cyan')
+                cleanup(successful=True)
+                return True
 
             log.debug("Subscribing to %s ranges for guild %s." % (ranges_to_send, self.id))
             print("Subscribing to %s ranges for guild %s." % (ranges_to_send, self.id))
-            await ws.request_lazy_guild(self.id, typing=True, activities=True, threads=True, channels={str(channel_id): ranges_to_send})
+            await ws.request_lazy_guild(self.id, channels={channel_id: ranges_to_send})
 
             print(f"Waiting for response for ranges {ranges_to_send} (guild {self.id})...")
-            while self.id in state._current_subscribe_guilds:
-                await sleep(0.05)
+            try:
+                await asyncio.wait_for(ws.wait_for('GUILD_MEMBER_LIST_UPDATE', predicate), timeout=45)
+            except asyncio.TimeoutError:
+                log.debug('Guild %s timed out waiting for subscribes.' % self.id)
+                r = ranges_to_send[-1]
+                if self._online_count in range(r[0], r[1]) or self.online_count < r[1]:
+                    cprint(f'Finished subscribing {self.id}!!!', 'cyan')
+                    cleanup(successful=True)
+                    return True
+                else:
+                    cleanup(successful=False)
+                    return False
+
+            await asyncio.sleep(delay)
 
             for r in ranges_to_send:
-                if self._online_count in range(r[0], r[1]):
-                    print(f"FINISHED {self.id}!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-                    self._subscribing = False
+                if self._online_count in range(r[0], r[1]) or self.online_count < r[1]:
+                    cprint(f'Finished subscribing {self.id}!!!', 'cyan')
+                    cleanup(successful=True)
+                    return True
 
     @property
     def channels(self):
@@ -1034,7 +1085,7 @@ class Guild(Hashable):
         data = await self._create_channel(name, overwrites, ChannelType.text, category, **options)
         channel = TextChannel(state=self._state, guild=self, data=data)
 
-        # temporarily add to the cache
+        # Temporarily add to the cache
         self._channels[channel.id] = channel
         return channel
 
@@ -1734,7 +1785,7 @@ class Guild(Hashable):
         """
         await self._state.http.create_integration(self.id, type, id)
 
-    async def integrations(self):
+    async def integrations(self, *, with_applications):
         """|coro|
 
         Returns a list of all integrations attached to the guild.
@@ -1743,6 +1794,11 @@ class Guild(Hashable):
         do this.
 
         .. versionadded:: 1.4
+
+        Parameters
+        -----------
+        with_applications: :class:`bool`
+            Whether to include applications.
 
         Raises
         -------
@@ -1756,8 +1812,10 @@ class Guild(Hashable):
         List[:class:`Integration`]
             The list of integrations that are attached to the guild.
         """
-        data = await self._state.http.get_all_integrations(self.id)
+        data = await self._state.http.get_all_integrations(self.id, with_applications=with_applications)
         return [Integration(guild=self, data=d) for d in data]
+
+    fetch_integrations = integrations
 
     async def fetch_emojis(self):
         r"""|coro|
@@ -2243,6 +2301,11 @@ class Guild(Hashable):
         -----------
         cache: :class:`bool`
             Whether to cache the members as well.
+
+        Raises
+        -------
+        ClientException
+            You do not have :attr:`Permission.manage_guild`.
         """
 
         if not self.me.guild_permissions.manage_guild:
@@ -2333,7 +2396,7 @@ class Guild(Hashable):
         """
 
         state = self._state
-        ws = state._get_websocket(self.id)
+        ws = state._get_websocket()
         channel_id = channel.id if channel else None
 
         if channel_id and preferred_region == '':

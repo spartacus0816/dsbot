@@ -243,10 +243,10 @@ class DiscordWebSocket:
     HEARTBEAT_ACK
         Receive only. Confirms receiving of a heartbeat. Not having it implies
         a connection issue.
-    DM
-        Send only. Used to get DM features.
+    ACCESS_DM
+        Send only. Useless.
     GUILD_SUBSCRIBE
-        Send only. Subscribes you to guilds. Responds with GUILD_MEMBER_LIST_UPDATE sync.
+        Send only. Subscribes you to guilds. Might respond with GUILD_MEMBER_LIST_UPDATE.
     gateway
         The gateway we are currently connected to.
     token
@@ -266,7 +266,7 @@ class DiscordWebSocket:
     HELLO              = 10
     HEARTBEAT_ACK      = 11
     GUILD_SYNC         = 12
-    DM                 = 13
+    ACCESS_DM          = 13
     GUILD_SUBSCRIBE    = 14
 
     def __init__(self, socket, *, loop):
@@ -614,22 +614,22 @@ class DiscordWebSocket:
         payload = {
             'op': self.GUILD_SUBSCRIBE,
             'd': {
-                'guild_id': str(guild_id),
+                'guild_id': guild_id,
             }
         }
 
         data = payload['d']
-        if typing:
+        if typing is not None:
             data['typing'] = typing
-        if threads:
+        if threads is not None:
             data['threads'] = threads
-        if activities:
+        if activities is not None:
             data['activities'] = activities
-        if members:
+        if members is not None:
             data['members'] = members
-        if channels:
+        if channels is not None:
             data['channels'] = channels
-        if thread_member_lists:
+        if thread_member_lists is not None:
             data['thread_member_lists'] = thread_member_lists
 
         await self.send_as_json(payload)
@@ -658,7 +658,7 @@ class DiscordWebSocket:
                 'guild_id': guild_id,
                 'channel_id': channel_id,
                 'self_mute': self_mute,
-                'self_deaf': self_deaf,
+                'self_deaf': self_deaf
             }
         }
 
@@ -670,6 +670,17 @@ class DiscordWebSocket:
             payload['d']['preferred_region'] = preferred_region
 
         log.debug('Updating our voice state to %s.', payload)
+        await self.send_as_json(payload)
+
+    async def access_dm(self, channel_id):
+        payload = {
+            'op': self.ACCESS_DM,
+            'd': {
+                'channel_id': channel_id
+            }
+        }
+
+        log.debug('Sending ACCESS_DM for channel %s.', channel_id)
         await self.send_as_json(payload)
 
     async def close(self, code=4000):
@@ -765,7 +776,7 @@ class DiscordVoiceWebSocket:
     @classmethod
     async def from_client(cls, client, *, resume=False):
         """Creates a voice websocket for the :class:`VoiceClient`."""
-        gateway = 'wss://' + client.endpoint + '/?v=5'
+        gateway = 'wss://' + client.endpoint + '/?v=4'
         http = client._state.http
         socket = await http.ws_connect(gateway, compress=15, host=client.endpoint)
         ws = cls(socket, loop=client.loop)

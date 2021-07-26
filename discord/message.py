@@ -35,7 +35,7 @@ from .emoji import Emoji
 from .partial_emoji import PartialEmoji
 from .calls import CallMessage
 from .enums import MessageType, ChannelType, try_enum
-from .errors import InvalidArgument, ClientException, HTTPException
+from .errors import InvalidArgument, ClientException, HTTPException, DiscordException
 from .embeds import Embed
 from .member import Member
 from .flags import MessageFlags
@@ -44,6 +44,7 @@ from .utils import escape_mentions
 from .guild import Guild
 from .mixins import Hashable
 from .sticker import Sticker
+from .invite import Invite
 
 __all__ = (
     'Attachment',
@@ -528,6 +529,8 @@ class Message(Hashable):
         A list of stickers given to the message.
 
         .. versionadded:: 1.6
+    invites: List[:class:`Invite`]
+        A list of invites in the message.
     """
 
     __slots__ = ('_edited_timestamp', 'tts', 'content', 'channel', 'webhook_id',
@@ -536,7 +539,7 @@ class Message(Hashable):
                  '_cs_clean_content', '_cs_raw_channel_mentions', 'nonce', 'pinned',
                  'role_mentions', '_cs_raw_role_mentions', 'type', 'call', 'flags',
                  '_cs_system_content', '_cs_guild', '_state', 'reactions', 'reference',
-                 'application', 'activity', 'stickers')
+                 'application', 'activity', 'stickers', '_cs_invites')
 
     def __init__(self, *, state, channel, data):
         self._state = state
@@ -980,6 +983,17 @@ class Message(Hashable):
         if self.type is MessageType.guild_discovery_grace_period_final_warning:
             return 'This server has failed Discovery activity requirements for 3 weeks in a row. If this server fails for 1 more week, it will be removed from Discovery.'
 
+    async def invites(self):
+        state = self._state
+        invite_ids = [utils.resolve_invite(match) for match in re.findall('(?:https?://)?discord(?:app)?\.(?:com/invite|gg)/[a-zA-Z0-9]+/?', self.content)]
+        invites = []
+        for id in invite_ids:
+            try:
+                invites.append(await state.http.get_invite(id))
+            except DiscordException:
+                pass
+        return [Invite.from_incomplete(state=state, data=invite, message_id=self.id) for invite in invites]
+
     async def delete(self, *, delay=None):
         """|coro|
 
@@ -1296,22 +1310,12 @@ class Message(Hashable):
 
         Marks this message as read.
 
-        The user must not be a bot user.
-
-        .. deprecated:: 1.7
-
         Raises
         -------
         HTTPException
             Acking failed.
-        ClientException
-            You must not be a bot user.
         """
-
-        state = self._state
-        if state.is_bot:
-            raise ClientException('Must not be a bot account to ack messages.')
-        return await state.http.ack_message(self.channel.id, self.id)
+        return await self._state.http.ack_message(self.channel.id, self.id)
 
     async def reply(self, content=None, **kwargs):
         """|coro|
