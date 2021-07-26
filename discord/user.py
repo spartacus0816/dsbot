@@ -28,30 +28,136 @@ from collections import namedtuple
 
 import discord.abc
 from .flags import PublicUserFlags
-from .utils import snowflake_time, _bytes_to_base64_data, parse_time
+from .utils import snowflake_time, _bytes_to_base64_data, parse_time, cached_slot_property
 from .enums import DefaultAvatar, FriendFlags, StickerAnimationOptions, Theme, UserContentFilter, RelationshipAction, RelationshipType, UserFlags, HypeSquadHouse, PremiumType, try_enum
 from .errors import ClientException, NotFound
 from .colour import Colour
 from .asset import Asset
 from .settings import Settings
+from .object import Object
+
+class Note:
+    __slots__ = ('_state', '_note', '_user_id', '_cs_user')
+
+    def __init__(self, state, user_id, *, user=None, note=None):
+        self._state = state
+        self._user_id = user_id
+        self._note = note
+        if user:
+            self._cs_user = user
+
+    @property
+    def note(self):
+        """Returns the note.
+
+        Raises
+        -------
+        ClientException
+            Attempted to access note without fetching it.
+        """
+        if note is None:
+            raise ClientException('Note is not fetched.')
+        return self._note
+
+    @cached_slot_property('_cs_user')
+    def user(self):
+        """Returns the :class:`User` the note belongs to.
+
+        If the user isn't in the cache, it returns a
+        :class:`Object` instead.
+        """
+        state = self._state
+        user_id = self._user_id
+
+        user = state.get_user(user_id)
+        if user is None:
+            user = Object(user_id)
+        return user
+
+    async def fetch(self):
+        """|coro|
+
+        Retrieves the note.
+
+        Raises
+        -------
+        HTTPException
+            Retrieving the note failed.
+
+        Returns
+        --------
+        :class:`str`
+            The note.
+
+        .. versionadded:: 1.9
+        """
+        try:
+            data = await self._state.http.get_note(self.user.id)
+            self._note = data['note']
+            return data['note']
+        except NotFound: # 404 = no note
+            self._note = ''
+            return ''
+
+    async def edit(self, note):
+        """|coro|
+
+        Changes the note.
+
+        Raises
+        -------
+        HTTPException
+            Changing the note failed.
+
+        .. versionadded:: 1.9
+        """
+        await self._state.http.set_note(self._user_id, note=note)
+        self._note = note
+
+    async def delete(self):
+        """|coro|
+
+        A shortcut to :meth:`.edit` that deletes the note.
+
+        Raises
+        -------
+        HTTPException
+            Deleting the note failed.
+
+        .. versionadded:: 1.9
+        """
+        await self.edit(None)
+        self._note = ''
+
+    def __str__(self):
+        return self._note
+
+    def __repr__(self):
+        return f'<Note user={self.user!r}>'
+
+    def __len__(self):
+        try:
+            return len(self._note)
+        except TypeError:
+            return 0
 
 class Profile:
     def __init__(self, state, data):
         self._state = state
 
         user = data['user']
-        self.flags = user.pop('flags', 0) # TODO figure out the differences and parse them
+        self.flags = user.pop('flags', 0) # TODO: Figure out the differences and parse them
         bio = user.pop('bio')
         self.bio = bio if bio else None
         self.banner = user.pop('banner')
         self._banner_color = user.pop('banner_color')
-        self.user = User(data=user, state=state)
+        self.user = user = User(data=user, state=state)
 
         self.premium_since = parse_time(data['premium_since'])
         self.connected_accounts = data['connected_accounts']
 
-        if 'note' in data:
-            self.note = data['note']
+        self.note = Note(state, user.id, user=user)
+
         if 'mutual_guilds' in data:
             self.mutual_guilds = self._parse_mutual_guilds(data['mutual_guilds'])
         if 'mutual_friends' in data:
@@ -75,42 +181,6 @@ class Profile:
         state = self._state
         return [state.store_user(friend) for friend in mutual_friends]
 
-    async def fetch_note(self):
-        """|coro|
-
-        Gets the user's note.
-
-        Raises
-        -------
-        HTTPException
-            Getting the note failed.
-
-        Returns
-        --------
-        :class:`str`
-            The user's note.
-        """
-
-        try:
-            note = await self._state.http.get_note(self.user.id)
-            return note['note']
-        except NotFound:
-            return None
-
-    async def set_note(self, note):
-        """|coro|
-
-        Sets the user's note.
-
-        Raises
-        -------
-        HTTPException
-            Setting the note failed.
-        """
-
-        await self._state.http.set_note(self.user.id, note=note)
-        self.note = note
-
     @property
     def banner_url(self):
         """:class:`Asset`: Returns an :class:`Asset` for the banner the user has.
@@ -119,11 +189,16 @@ class Profile:
 
         This is equivalent to calling :meth:`banner_url_as` with
         the default parameters (i.e. webp/gif detection and a size of 1024).
+
+        .. versionadded:: 1.9
         """
         return self.banner_url_as(format=None, size=1024)
 
     def is_banner_animated(self):
-        """:class:`bool`: Indicates if the user has an animated banner."""
+        """:class:`bool`: Indicates if the user has an animated banner.
+
+        .. versionadded:: 1.9
+        """
         return bool(self.banner and self.banner.startswith('a_'))
 
     def banner_url_as(self, *, format=None, static_format='webp', size=1024):
@@ -158,12 +233,17 @@ class Profile:
         --------
         :class:`Asset`
             The resulting CDN asset.
+
+        .. versionadded:: 1.9
         """
         return Asset._from_user_banner(self.user._state, self, format=format, static_format=static_format, size=size)
 
     @property
     def banner_colour(self):
-        """:class:`Colour`: Returns the banner colour"""
+        """:class:`Colour`: Returns the banner colour
+
+        .. versionadded:: 1.9
+        """
         try:
             return Colour(int(f'0x{self._banner_color[1:]}', 0))
         except TypeError:
@@ -175,8 +255,7 @@ class Profile:
     def banner_colour_url(self):
         """:class:`Asset`: Returns an :class:`Asset` for the banner colour the user has.
 
-        This is equivalent to calling :meth:`banner_url_as` with
-        the default parameters (i.e. webp/gif detection and a size of 1024).
+        .. versionadded:: 1.9
         """
         return Asset._from_user_banner_colour(self.user._state, self)
 
@@ -215,6 +294,7 @@ class Profile:
     @property
     def hypesquad_house(self):
         flags = (UserFlags.hypesquad_bravery, UserFlags.hypesquad_brilliance, UserFlags.hypesquad_balance)
+        # I have no idea why this is list but I'm just going to return the first item.
         return [house for house, flag in zip(HypeSquadHouse, flags) if self._has_flag(flag)][0]
 
     @property
@@ -956,7 +1036,7 @@ class User(BaseUser, discord.abc.Messageable):
         Specifies if the user is a system user (i.e. represents Discord officially).
     """
 
-    __slots__ = BaseUser.__slots__ + ('__weakref__', 'banner')
+    __slots__ = BaseUser.__slots__ + ('__weakref__',)
 
     def __repr__(self):
         return '<User id={0.id} name={0.name!r} discriminator={0.discriminator!r} bot={0.bot}>'.format(self)
@@ -1024,14 +1104,14 @@ class User(BaseUser, discord.abc.Messageable):
     async def mutual_guilds(self):
         """|coro|
 
-        Gets all mutual friends of this user.
+        Gets all mutual guilds with this user.
 
         Raises
         -------
         Forbidden
-            Not allowed to get mutual friends of this user.
+            Not allowed to get mutual guilds of this user.
         HTTPException
-            Getting mutual friends failed.
+            Getting mutual guilds failed.
 
         Returns
         -------
@@ -1134,10 +1214,9 @@ class User(BaseUser, discord.abc.Messageable):
         data = await state.http.get_user_profile(self.id)
 
         data['mutual_friends'] = await state.http.get_mutual_friends(self.id)
-        try:
-            note = await state.http.get_note(self.id)
-            data['note'] = note['note']
-        except NotFound: # 404 means no note
-            data['note'] = None
 
-        return Profile(state, data)
+        profile = Profile(state, data)
+
+        await profile.note.fetch()
+
+        return profile
