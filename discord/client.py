@@ -1263,6 +1263,22 @@ class Client:
 
     # Miscellaneous stuff
 
+    async def fetch_application(self, app_id):
+        """|coro|
+
+        Retrieves a :class:`AppInfo` for a specified ID.
+
+        .. versionadded:: 1.9
+
+        Raises
+        -------
+        :exc:`.HTTPException`
+            Fetching applications failed.
+        """
+
+        data = await self.http.get_applications(app_id)
+        return AppInfo(self._connection, data)
+
     async def fetch_applications(self, *, with_team_applications=True):
         """|coro|
 
@@ -1312,7 +1328,6 @@ class Client:
             The guild's widget.
         """
         data = await self.http.get_widget(guild_id)
-
         return Widget(state=self._connection, data=data)
 
     async def fetch_user(self, user_id):
