@@ -723,7 +723,6 @@ class HTTPClient:
                 ContextProperties._from_accept_invite_page(guild_id=guild_id, channel_id=channel_id, channel_type=channel_type),
                 ContextProperties._from_join_guild_popup(guild_id=guild_id, channel_id=channel_id, channel_type=channel_type)
             ))
-        breakpoint()
         return self.request(Route('POST', '/invites/{invite_id}', invite_id=invite_id), context_properties=context_properties)
 
     def leave_guild(self, guild_id):
@@ -1142,6 +1141,25 @@ class HTTPClient:
             'with_team_applications': str(with_team_applications).lower()
         }
         return self.request(Route('GET', '/applications'), params=params, super_properties_to_track=True)
+
+    def get_application(self, app_id):
+        return self.request(Route('GET', '/applications/{app_id}', app_id=app_id), super_properties_to_track=True)
+
+    def get_app_entitlements(self, app_id):
+        return self.request(Route('GET', '/users/@me/applications/{app_id}/entitlements', app_id=app_id), super_properties_to_track=True)
+
+    def get_app_skus(self, app_id, *, localize=False, with_bundled_skus=True):
+        params = {
+            'localize': str(localize).lower()
+            'with_bundled_skus': str(with_bundled_skus).lower()
+        }
+        return self.request(Route('GET', '/applications/{app_id}/skus', app_id=app_id), params=params, super_properties_to_track=True)
+
+    def get_app_whitelist(self, app_id):
+        return self.request(Route('GET', '/oauth2/applications/{app_id}/allowlist', app_id=app_id), super_properties_to_track=True)
+
+    def get_teams(self):
+        return self.request(Route('GET', '/teams'), super_properties_to_track=True)
 
     def disable_account(self, password):
         payload = {

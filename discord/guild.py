@@ -30,7 +30,6 @@ import copy
 from collections import namedtuple
 import logging
 from math import ceil
-from termcolor import cprint # TODO REMOVE
 
 from . import utils
 from .role import Role
@@ -425,11 +424,9 @@ class Guild(Hashable):
                 return any((opdata.get('range') in ranges_to_send for opdata in data.get('ops', [])))
 
         log.debug("Subscribing to [[0, 99]] ranges for guild %s." % self.id)
-        print("Subscribing to guild %s." % self.id)
         ranges_to_send = [[0, 99]]
         await ws.request_lazy_guild(self.id, channels={channel_id: ranges_to_send})
 
-        print(f"Waiting for response for ranges {ranges_to_send} (guild {self.id})...")
         try:
             await asyncio.wait_for(ws.wait_for('GUILD_MEMBER_LIST_UPDATE', predicate), timeout=60)
         except asyncio.TimeoutError:
@@ -439,7 +436,6 @@ class Guild(Hashable):
 
         for r in ranges_to_send:
             if self._online_count in range(r[0], r[1]) or self.online_count < r[1]:
-                cprint(f'Finished subscribing {self.id}!!!', 'cyan')
                 cleanup(successful=True)
                 return True
 
@@ -458,22 +454,18 @@ class Guild(Hashable):
             ranges_to_send = get_current_ranges(ranges)
 
             if not ranges_to_send:
-                cprint(f'Finished subscribing {self.id}!!!', 'cyan')
                 cleanup(successful=True)
                 return True
 
             log.debug("Subscribing to %s ranges for guild %s." % (ranges_to_send, self.id))
-            print("Subscribing to %s ranges for guild %s." % (ranges_to_send, self.id))
             await ws.request_lazy_guild(self.id, channels={channel_id: ranges_to_send})
 
-            print(f"Waiting for response for ranges {ranges_to_send} (guild {self.id})...")
             try:
                 await asyncio.wait_for(ws.wait_for('GUILD_MEMBER_LIST_UPDATE', predicate), timeout=45)
             except asyncio.TimeoutError:
                 log.debug('Guild %s timed out waiting for subscribes.' % self.id)
                 r = ranges_to_send[-1]
                 if self._online_count in range(r[0], r[1]) or self.online_count < r[1]:
-                    cprint(f'Finished subscribing {self.id}!!!', 'cyan')
                     cleanup(successful=True)
                     return True
                 else:
@@ -484,7 +476,6 @@ class Guild(Hashable):
 
             for r in ranges_to_send:
                 if self._online_count in range(r[0], r[1]) or self.online_count < r[1]:
-                    cprint(f'Finished subscribing {self.id}!!!', 'cyan')
                     cleanup(successful=True)
                     return True
 

@@ -815,8 +815,6 @@ class ConnectionState:
             # it unless I keep a seperate list of the member sidebar (rip memory).
 
             if op == 'SYNC':
-                print(f'STATE: Received data for ranges {opdata["range"]} for guild {guild.id}.')
-
                 members = [Member(guild=guild, data=member['member'], state=self) for member in [item for item in opdata.get('items', []) if 'member' in item]]
 
                 member_dict = {str(member.id): member for member in members}
@@ -829,9 +827,6 @@ class ConnectionState:
 
                 for member in members:
                     guild._add_member(member)
-
-                print(f"Cached members: {len(guild.members)}")
-                print(f"Online members: {guild._online_count}")
 
             if op == 'INSERT':
                 if 'member' not in opdata['item']:
