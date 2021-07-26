@@ -29,7 +29,7 @@ from collections import namedtuple
 import discord.abc
 from .flags import PublicUserFlags
 from .utils import snowflake_time, _bytes_to_base64_data, parse_time
-from .enums import FriendFlags, StickerAnimationOptions, Theme, UserContentFilter, RelationshipAction, RelationshipType, UserFlags, HypeSquadHouse, PremiumType, try_enum
+from .enums import DefaultAvatar, FriendFlags, StickerAnimationOptions, Theme, UserContentFilter, RelationshipAction, RelationshipType, UserFlags, HypeSquadHouse, PremiumType, try_enum
 from .errors import ClientException, NotFound
 from .colour import Colour
 from .asset import Asset
