@@ -426,7 +426,7 @@ class HTTPClient:
     def send_typing(self, channel_id):
         return self.request(Route('POST', '/channels/{channel_id}/typing', channel_id=channel_id))
 
-    def send_files(self, channel_id, *, files, content=None, tts=False, embed=None, nonce=None, allowed_mentions=None, message_reference=None):
+    def send_files(self, channel_id, *, files, content=None, tts=False, embed=None, nonce=0, allowed_mentions=None, message_reference=None):
         r = Route('POST', '/channels/{channel_id}/messages', channel_id=channel_id)
         form = []
         payload = {'tts': tts}
@@ -536,9 +536,9 @@ class HTTPClient:
                    channel_id=channel_id, message_id=message_id, emoji=emoji)
         return self.request(r)
 
-    def get_message(self, channel_id, message_id):
-        r = Route('GET', '/channels/{channel_id}/messages/{message_id}', channel_id=channel_id, message_id=message_id)
-        return self.request(r)
+    async def get_message(self, channel_id, message_id):
+        data = await self.logs_from(channel_id, 1, around=message_id)
+        return data[0]
 
     def get_private_channels(self):
         return self.request(Route('GET', '/users/@me/channels'))
@@ -612,30 +612,7 @@ class HTTPClient:
         return self.request(r, json=payload)
 
     def edit_profile(self, **fields):
-        payload = {}
-
-        if 'password' in fields:
-            payload['password'] = fields['password']
-
-        if 'username' in fields:
-            payload['username'] = fields['username']
-
-        if 'email' in fields:
-            payload['email'] = fields['email']
-
-        if 'avatar' in fields:
-            payload['avatar'] = fields['avatar']
-
-        if 'banner' in fields:
-            payload['banner'] = fields['banner']
-
-        if 'bio' in fields:
-            payload['bio'] = fields['bio']
-
-        if 'new_password' in fields:
-            payload['new_password'] = fields['new_password']
-
-        return self.request(Route('PATCH', '/users/@me'), json=payload)
+        return self.request(Route('PATCH', '/users/@me'), json=fields)
 
     def change_my_nickname(self, guild_id, nickname):
         r = choice((
@@ -738,15 +715,15 @@ class HTTPClient:
 
         return self.request(Route('GET', '/users/@me/guilds'), params=params, super_properties_to_track=True)
 
-    def join_guild(self, invite_id, *, guild_id, channel_id, channel_type):
-        context_properties = choice(( # Join Guild, Accept Invite Page
-            ContextProperties._from_accept_invite_page(guild_id=guild_id, channel_id=channel_id, channel_type=channel_type),
-            ContextProperties._from_join_guild_popup(guild_id=guild_id, channel_id=channel_id, channel_type=channel_type)
-        ))
-        return self.request(Route('POST', '/invites/{invite_id}', invite_id=invite_id), context_properties=context_properties)
-
-    def join_guild_from_message(self, invite_id, *, guild_id, channel_id, channel_type, message_id):
-        context_properties = ContextProperties._from_invite_embed(guild_id=guild_id, channel_id=channel_id, channel_type=channel_type, message_id=message_id) # Invite Button Embed
+    def join_guild(self, invite_id, *, guild_id, channel_id, channel_type, message_id=None):
+        if message_id:
+            context_properties = ContextProperties._from_invite_embed(guild_id=guild_id, channel_id=channel_id, channel_type=channel_type, message_id=message_id) # Invite Button Embed
+        else:
+            context_properties = choice(( # Join Guild, Accept Invite Page
+                ContextProperties._from_accept_invite_page(guild_id=guild_id, channel_id=channel_id, channel_type=channel_type),
+                ContextProperties._from_join_guild_popup(guild_id=guild_id, channel_id=channel_id, channel_type=channel_type)
+            ))
+        breakpoint()
         return self.request(Route('POST', '/invites/{invite_id}', invite_id=invite_id), context_properties=context_properties)
 
     def leave_guild(self, guild_id):
@@ -1111,7 +1088,7 @@ class HTTPClient:
 
     async def get_gateway(self, *, encoding='json', v=6, zlib=True):
         # The gateway URL hasn't changed for over 5 years. And,
-        # the official clients are going to stop using it. Sooooo:
+        # the official clients are going to stop using it. Sooooo...
 
         #try:
             #data = await self.request(Route('GET', '/gateway'))
@@ -1166,8 +1143,14 @@ class HTTPClient:
         }
         return self.request(Route('GET', '/applications'), params=params, super_properties_to_track=True)
 
-    def disable_account(self):
-        return self.request(Route('POST', '/users/@me/disable'))
+    def disable_account(self, password):
+        payload = {
+            'password': password
+        }
+        return self.request(Route('POST', '/users/@me/disable'), json=payload)
 
     def delete_account(self):
-        return self.request(Route('POST', '/users/@me/delete'))
+        payload = {
+            'password': password
+        }
+        return self.request(Route('POST', '/users/@me/delete'), json=payload)
