@@ -812,7 +812,7 @@ class ConnectionState:
             # There are two OPs I'm not parsing.
             # INVALIDATE: Usually invalid (hehe).
             # DELETE: Sends the index, not the user ID, so I can't do anything with
-            # it unless I keep a seperate list of the member sidebar (rip memory).
+            # it unless I keep a seperate list of the member sidebar (maybe in future).
 
             if op == 'SYNC':
                 members = [Member(guild=guild, data=member['member'], state=self) for member in [item for item in opdata.get('items', []) if 'member' in item]]
@@ -901,10 +901,10 @@ class ConnectionState:
 
     def _get_create_guild(self, data):
         guild = self._get_guild(int(data['id']))
-        # Discord being Discord gives us GUILD_CREATEs
-        # for existing guilds after sending an opcode 14.
-        # However, we want that if we forced a GUILD_CREATE
-        # for an unavailable guild.
+        # Discord being Discord starts GUILD_CREATE
+        # streaming after sending an OPCode 14.
+        # However, we want that if we forced a
+        # GUILD_CREATE for an unavailable guild.
         if guild is not None:
             guild._from_data(data)
             return
@@ -952,7 +952,6 @@ class ConnectionState:
         guild = self._get_create_guild(data)
 
         if guild is None:
-            # Useless GUILD_CREATE
             return
 
         # Chunk/subscribe if needed
