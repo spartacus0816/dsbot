@@ -1150,7 +1150,7 @@ class HTTPClient:
 
     def get_app_skus(self, app_id, *, localize=False, with_bundled_skus=True):
         params = {
-            'localize': str(localize).lower()
+            'localize': str(localize).lower(),
             'with_bundled_skus': str(with_bundled_skus).lower()
         }
         return self.request(Route('GET', '/applications/{app_id}/skus', app_id=app_id), params=params, super_properties_to_track=True)
@@ -1161,13 +1161,16 @@ class HTTPClient:
     def get_teams(self):
         return self.request(Route('GET', '/teams'), super_properties_to_track=True)
 
+    def get_team(self, team_id):
+        return self.request(Route('GET', '/teams/{team_id}', team_id=team_id), super_properties_to_track=True)
+
     def disable_account(self, password):
         payload = {
             'password': password
         }
         return self.request(Route('POST', '/users/@me/disable'), json=payload)
 
-    def delete_account(self):
+    def delete_account(self, password):
         payload = {
             'password': password
         }
