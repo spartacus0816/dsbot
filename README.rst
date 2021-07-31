@@ -8,38 +8,26 @@ discord.py-self
    :target: https://pypi.python.org/pypi/discord.py-self
    :alt: PyPI supported Python versions
 
-**Self-bot only fork.**
-
 A modern, easy to use, feature-rich, and async ready API wrapper for Discord's user API written in Python.
 
 Fork Changes
 ------------
 
-This has been moved to the `website <https://dolf.ml/discord.py-self>`_ (WIP).
+This has been moved to the `website <https://dolf.ml/discord.py-self>`_.
 
 **Credits:**
-
-- `karibiusk <https://stackoverflow.com/users/15139805/karibiusk/>`_ for some food for thought.
-- `Maxx0911 <https://www.reddit.com/user/Maxx0911/>`_ for more food for thought.
 - `arandomnewaccount <https://www.reddit.com/user/obviouslymymain123/>`_ for Discord API help.
-
-**Roadmap:**
-
-- Continue adding undocumented user APIs
-- Add slash command support
-- Add bot UI support
 
 **Note:**
 Self-botting/user-botting is against the Discord ToS. This library is a proof of concept and I do not recommend using it. Do so at your own risk.
-The master branch is not ready to be used. Please avoid using it.
 
 Key Features
 -------------
 
 - Modern Pythonic API using ``async`` and ``await``.
 - Proper rate limit handling.
-- 100% coverage of the supported Discord API.
 - Optimised in both speed and memory.
+- Mostly compatible with the official ``discord.py``.
 
 Installing
 ----------
@@ -74,6 +62,9 @@ To install the development version, do the following (not recommended):
     $ git clone --single-branch --branch development https://github.com/dolfies/discord.py-self
     $ cd discord.py-self
     $ python3 -m pip install -U .[voice]
+
+
+The master branch (version 2.0) is not ready for use in *any* way. Do not use.
 
 
 Optional Packages
@@ -116,7 +107,7 @@ Bot Example
     import discord
     from discord.ext import commands
 
-    bot = commands.Bot(command_prefix='>')
+    bot = commands.Bot(command_prefix='>', self_bot=True)
 
     @bot.command()
     async def ping(ctx):
@@ -130,4 +121,4 @@ Links
 ------
 
 - `Official Documentation <https://discordpy.readthedocs.io/en/latest/index.html>`_
-- `Fork Documentation (WIP) <https://dolf.ml/discord.py-self>`_
+- `Fork Documentation <https://dolf.ml/discord.py-self>`_
