@@ -328,7 +328,7 @@ class HTTPClient:
             else:
                 raise HTTPException(resp, 'failed to get asset')
 
-    # state management
+    # State management
 
     async def close(self):
         if self.__session:
@@ -338,7 +338,7 @@ class HTTPClient:
         self.token = token
         self._ack_token = None
 
-    # login management
+    # Login management
 
     async def static_login(self, token):
         # Necessary to get aiohttp to stop complaining about session creation
@@ -358,7 +358,7 @@ class HTTPClient:
 
         return data
 
-    def logout(self):
+    def logout(self): # Seems useless? Will be going in the accounts extension eventually.
         return self.request(Route('POST', '/auth/logout'), json={})
 
     # Group functionality
@@ -392,9 +392,9 @@ class HTTPClient:
 
     # Message management
 
-    def start_private_message(self, user_id):
+    def start_private_message(self, recipient):
         payload = {
-            'recipients': [user_id]
+            'recipients': [recipient]
         }
         context_properties = ContextProperties._empty() # {}
 
@@ -734,13 +734,13 @@ class HTTPClient:
     def delete_guild(self, guild_id):
         return self.request(Route('DELETE', '/guilds/{guild_id}', guild_id=guild_id))
 
-    def create_guild(self, name, icon):
+    def create_guild(self, name, icon, *, template='2TffvPucqHkN'):
         payload = {
             'name': name,
             'icon': icon,
             'system_channel_id': None,
             'channels': [],
-            'guild_template_code': '2TffvPucqHkN'
+            'guild_template_code': template
         }
 
         return self.request(Route('POST', '/guilds'), json=payload)
@@ -1080,7 +1080,6 @@ class HTTPClient:
         payload = {
             'nickname': nickname
         }
-
         return self.request(Route('PATCH', '/users/@me/relationships/{user_id}', user_id=user_id), payload=payload)
 
     # Misc

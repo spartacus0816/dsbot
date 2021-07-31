@@ -24,19 +24,27 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 """
 
+from .colour import Colour
+
 class GuildFolder:
-    __slots__ = ('_state', 'id', 'name', 'color', 'colour', 'guilds')
+    __slots__ = ('_state', 'id', 'name', '_color', 'guilds')
 
     def __init__(self, *, data, state):
         self._state = state
         self.id = data['id']
         self.name = data['name']
-        self.color = data['color']
-        self.colour = self.color
+        self._color = data['color']
         self.guilds = list(filter(None, map(self._get_guild, data['guild_ids'])))
 
     def _get_guild(self, id):
         return self._state._get_guild(int(id))
+
+    @property
+    def color(self):
+        color = self._color
+        return Colour(color) if color else None
+
+    colour = color
 
     def __str__(self):
         return self.name or 'None'

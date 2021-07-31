@@ -951,7 +951,7 @@ class Client:
             Indicates what status to change to. If ``None``, then
             :attr:`.Status.online` is used.
         afk: Optional[:class:`bool`]
-            Indicates if you are going AFK. This allows the discord
+            Indicates if you are going AFK. This allows the Discord
             client to know how to handle push notifications better
             for you in case you are actually idle and not lying.
 
@@ -1122,9 +1122,6 @@ class Client:
         if icon is not None:
             icon = utils._bytes_to_base64_data(icon)
 
-        region = region or VoiceRegion.us_west
-        region_value = region.value
-
         if code:
             data = await self.http.create_from_template(code, name, icon)
         else:
@@ -1218,6 +1215,7 @@ class Client:
             :attr:`.Invite.expires_at` fields.
 
             ..versionadded:: 1.9
+
         Raises
         -------
         :exc:`.NotFound`
@@ -1270,10 +1268,20 @@ class Client:
 
         .. versionadded:: 1.9
 
+        Parameters
+        ----------
+        app_id: :class:`int`
+            The ID of the application to retrieve.
+
         Raises
         -------
         :exc:`.HTTPException`
             Fetching applications failed.
+
+        Returns
+        --------
+        :class:`AppInfo`
+            The application.
         """
 
         data = await self.http.get_applications(app_id)
@@ -1295,6 +1303,11 @@ class Client:
         -------
         :exc:`.HTTPException`
             Fetching applications failed.
+
+        Returns
+        --------
+        List[:class:`AppInfo`]
+            All your applications.
         """
 
         data = await self.http.get_applications(with_team_applications=with_team_applications)

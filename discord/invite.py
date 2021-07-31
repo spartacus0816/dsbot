@@ -297,7 +297,7 @@ class Invite(Hashable):
 
     __slots__ = ('max_age', 'code', 'guild', 'revoked', 'created_at', 'uses',
                  'temporary', 'max_uses', 'inviter', 'channel', '_state',
-                 'approximate_member_count', 'approximate_presence_count', 
+                 'approximate_member_count', 'approximate_presence_count',
                  'expires_at', '_message_id')
 
     BASE = 'https://discord.gg'
@@ -411,7 +411,7 @@ class Invite(Hashable):
         """
 
         state = self._state
-        
+
         data = await state.http.join_guild(self.code, guild_id=self.guild.id, channel_id=self.channel.id, channel_type=self.channel.type.value, message_id=self._message_id)
 
         new_member = data.get('new_member', False)
@@ -419,6 +419,8 @@ class Invite(Hashable):
             raise InvalidArgument('Tried to join a guild you\'re already in.')
 
         return Guild(data=data['guild'], state=state)
+
+    accept = use
 
     async def delete(self):
         """|coro|

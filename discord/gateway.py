@@ -243,6 +243,8 @@ class DiscordWebSocket:
     HEARTBEAT_ACK
         Receive only. Confirms receiving of a heartbeat. Not having it implies
         a connection issue.
+    GUILD_SYNC
+        Send only. Requests a guild sync. This is unfortunately no longer functional.
     ACCESS_DM
         Send only. Useless.
     GUILD_SUBSCRIBE
@@ -491,7 +493,7 @@ class DiscordWebSocket:
         except KeyError:
             log.debug('Unknown event %s.', event)
         else:
-            log.debug('Parsing event %s.', event)
+            log.info('Parsing event %s.', event)
             func(data)
 
         # remove the dispatched listeners

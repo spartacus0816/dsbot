@@ -46,7 +46,7 @@ __all__ = (
     '_channel_factory',
 )
 
-async def _single_delete_strategy(messages):
+async def _delete_messages(messages):
     for m in messages:
         await m.delete()
 
@@ -174,8 +174,9 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
             :class: helpful
 
             For a slightly more reliable method of fetching the
-            last message, consider using :meth:`history`
-            with the :attr:`last_message_id` attribute.
+            last message, consider using either :meth:`history`
+            or :meth:`fetch_message` with the :attr:`last_message_id`
+            attribute.
 
         Returns
         ---------
@@ -303,9 +304,6 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
         ret = []
         count = 0
 
-        minimum_time = int((time.time() - 14 * 24 * 60 * 60) * 1000.0 - 1420070400000) << 22
-        strategy = _single_delete_strategy
-
         while True:
             try:
                 msg = await iterator.next()
@@ -314,7 +312,7 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
                 if count >= 2:
                     # more than 2 messages -> bulk delete
                     to_delete = ret[-count:]
-                    await strategy(to_delete)
+                    await _delete_messages(to_delete)
                 elif count == 1:
                     # delete a single message
                     await ret[-1].delete()
@@ -324,22 +322,11 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
                 if count == 100:
                     # we've reached a full 'queue'
                     to_delete = ret[-100:]
-                    await strategy(to_delete)
+                    await _delete_messages(to_delete)
                     count = 0
                     await asyncio.sleep(1)
 
                 if check(msg):
-                    if msg.id < minimum_time:
-                        # older than 14 days old
-                        if count == 1:
-                            await ret[-1].delete()
-                        elif count >= 2:
-                            to_delete = ret[-count:]
-                            await strategy(to_delete)
-
-                        count = 0
-                        strategy = _single_delete_strategy
-
                     count += 1
                     ret.append(msg)
 

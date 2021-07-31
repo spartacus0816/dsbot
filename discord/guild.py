@@ -313,7 +313,7 @@ class Guild(Hashable):
         self.discovery_splash = guild.get('discovery_splash')
         self._rules_channel_id = utils._get_as_snowflake(guild, 'rules_channel_id')
         self._public_updates_channel_id = utils._get_as_snowflake(guild, 'public_updates_channel_id')
-        self._online_count = guild.get('online_count', None)
+        self._online_count = guild.get('online_count')
 
         for mdata in guild.get('merged_members', []):
             try:
@@ -350,6 +350,8 @@ class Guild(Hashable):
 
         You can only request members from the sidebar in 100 member ranges, and
         you can only specify up to 2 ranges per request.
+
+        This is a websocket operation and can be extremely slow.
 
         Parameters
         -----------
@@ -475,7 +477,8 @@ class Guild(Hashable):
             await asyncio.sleep(delay)
 
             for r in ranges_to_send:
-                if self._online_count in range(r[0], r[1]) or self.online_count < r[1]:
+                if ((self._online_count in range(r[0], r[1]) or self._online_count < r[1]) and self.large) or \
+                ((self._member_count in range(r[0], r[1]) or self._member_count < r[1]) and not self.large):
                     cleanup(successful=True)
                     return True
 
@@ -868,7 +871,7 @@ class Guild(Hashable):
     def member_count(self):
         """:class:`int`: Returns the true member count regardless of it being loaded fully or not."""
         return self._member_count
-    
+
     @property
     def online_count(self):
         """:class:`int`: Returns the online member count. This only exists after the first GUILD_MEMBER_LIST_UPDATE."""
@@ -1234,7 +1237,7 @@ class Guild(Hashable):
             The new name of the guild.
         description: :class:`str`
             The new description of the guild. This is only available to guilds that
-            contain ``PUBLIC`` in :attr:`Guild.features`.
+            contain ``COMMUNITY`` in :attr:`Guild.features`.
         icon: :class:`bytes`
             A :term:`py:bytes-like object` representing the icon. Only PNG/JPEG is supported.
             GIF is only available to guilds that contain ``ANIMATED_ICON`` in :attr:`Guild.features`.
@@ -2408,6 +2411,10 @@ class Guild(Hashable):
             The duration (in hours) of the mute. Defaults to
             ``None`` for an indefinite mute.
 
+        Raises
+        -------
+        HTTPException
+            Muting failed.
         """
 
         fields = {
@@ -2429,6 +2436,10 @@ class Guild(Hashable):
 
         .. versionadded:: 1.9
 
+        Raises
+        -------
+        HTTPException
+            Unmuting failed.
         """
 
         await self._state.http.edit_guild_settings(self.id, muted=False)
