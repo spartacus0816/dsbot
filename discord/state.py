@@ -620,7 +620,6 @@ class ConnectionState:
             log.debug('PRESENCE_UPDATE referencing an unknown guild ID: %s. Discarding.', guild_id)
             return
 
-        activities = data.get('activities')
         user = data['user']
         member_id = int(user['id'])
         member = guild.get_member(member_id)
@@ -780,6 +779,9 @@ class ConnectionState:
                 guild._add_member(member)
             log.debug('GUILD_MEMBER_UPDATE referencing an unknown member ID: %s. Discarding.', user_id)
 
+    def parse_guild_sync(self, data):
+        print('HOW THE FUCK DID YOU TRIGGER A `GUILD_SYNC`????\nIf you want to share your secrets, please feel free to email me.')
+
     def parse_guild_member_list_update(self, data):
         self.dispatch('raw_guild_member_list_update', data)
         guild = self._get_guild(int(data['guild_id']))
@@ -794,7 +796,7 @@ class ConnectionState:
 
         online_count = 0
         for group in data['groups']:
-            online_count += group['count']
+            online_count += group['count'] if group['id'] != 'offline' else 0
         guild._online_count = online_count
 
         for opdata in ops:
@@ -843,12 +845,6 @@ class ConnectionState:
                     self.dispatch('member_update', old_member, member)
                 else:
                     member = Member(data=mdata, guild=guild, state=self)
-
-                    # Force an update on the inner user if necessary
-                    user_update = member._update_inner_user(user)
-                    if user_update:
-                        self.dispatch('user_update', user_update[0], user_update[1])
-
                     guild._add_member(member)
 
             if op == 'UPDATE':
@@ -990,11 +986,6 @@ class ConnectionState:
         self.dispatch('guild_remove', guild)
 
     def parse_guild_ban_add(self, data):
-        # we make the assumption that GUILD_BAN_ADD is done
-        # before GUILD_MEMBER_REMOVE is called
-        # hence we don't remove it from cache or do anything
-        # strange with it, the main purpose of this event
-        # is mainly to dispatch to another event worth listening to for logging
         guild = self._get_guild(int(data['guild_id']))
         if guild is not None:
             try:

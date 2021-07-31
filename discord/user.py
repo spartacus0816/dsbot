@@ -82,14 +82,12 @@ class Note:
         Raises
         -------
         HTTPException
-            Retrieving the note failed.
+            Fetching the note failed.
 
         Returns
         --------
         :class:`str`
             The note.
-
-        .. versionadded:: 1.9
         """
         try:
             data = await self._state.http.get_note(self.user.id)
@@ -108,8 +106,6 @@ class Note:
         -------
         HTTPException
             Changing the note failed.
-
-        .. versionadded:: 1.9
         """
         await self._state.http.set_note(self._user_id, note=note)
         self._note = note
@@ -123,8 +119,6 @@ class Note:
         -------
         HTTPException
             Deleting the note failed.
-
-        .. versionadded:: 1.9
         """
         await self.edit(None)
         self._note = ''
@@ -141,6 +135,12 @@ class Note:
         except TypeError:
             return 0
 
+    def __bool__(self):
+        try:
+            return bool(self._note)
+        except TypeError:
+            return False
+
 class Profile:
     def __init__(self, state, data):
         self._state = state
@@ -150,7 +150,7 @@ class Profile:
         bio = user.pop('bio')
         self.bio = bio if bio else None
         self.banner = user.pop('banner')
-        self._banner_color = user.pop('banner_color')
+        self._accent_color = user.pop('accent_color')
         self.user = user = User(data=user, state=state)
 
         self.premium_since = parse_time(data['premium_since'])
@@ -239,27 +239,18 @@ class Profile:
         return Asset._from_user_banner(self.user._state, self, format=format, static_format=static_format, size=size)
 
     @property
-    def banner_colour(self):
-        """:class:`Colour`: Returns the banner colour
+    def accent_colour(self):
+        """:class:`Colour`: Returns the user's accent colour.
+
+        There is an alias for this named :attr:`accent_color`.
 
         .. versionadded:: 1.9
         """
-        try:
-            return Colour(int(f'0x{self._banner_color[1:]}', 0))
-        except TypeError:
-            return
+        if self._accent_color is None:
+            return None
+        return Colour(self._accent_color)
 
-    banner_color = banner_colour
-
-    @property
-    def banner_colour_url(self):
-        """:class:`Asset`: Returns an :class:`Asset` for the banner colour the user has.
-
-        .. versionadded:: 1.9
-        """
-        return Asset._from_user_banner_colour(self.user._state, self)
-
-    banner_color_url = banner_colour_url
+    accent_color = accent_colour
 
     @property
     def nitro(self):
@@ -294,7 +285,7 @@ class Profile:
     @property
     def hypesquad_house(self):
         flags = (UserFlags.hypesquad_bravery, UserFlags.hypesquad_brilliance, UserFlags.hypesquad_balance)
-        # I have no idea why this is list but I'm just going to return the first item.
+        # I have no idea why this was originally a list but I'm just going to return the first item just in case.
         return [house for house, flag in zip(HypeSquadHouse, flags) if self._has_flag(flag)][0]
 
     @property
@@ -530,15 +521,13 @@ class ClientUser(BaseUser):
     id: :class:`int`
         The user's unique ID.
     discriminator: :class:`str`
-        The user's discriminator. This is given when the username has conflicts.
+        The user's discriminator.
     bio: :class:`str`
-        The user's 'about me' field.
+        The user's "about me" field.
     avatar: Optional[:class:`str`]
         The avatar hash the user has. Could be ``None``.
     banner: Optional[:class:`str`]
         The banner hash the user has. Could be ``None``.
-    banner_color: :class:`str`
-        The banner color the user has. Could be ``None`` if default.
     bot: :class:`bool`
         Specifies if the user is a bot account.
     system: :class:`bool`
@@ -563,14 +552,17 @@ class ClientUser(BaseUser):
         Specifies the type of premium a user has (i.e. Nitro or Nitro Classic). Could be None if the user is not premium.
     settings: :class:`Settings`
         The user's client settings.
+    note: :class:`Note`
+        The user's note. Not pre-fetched.
     """
     __slots__ = BaseUser.__slots__ + \
-                ('settings', 'bio', 'banner', '_banner_color', 'phone', 'email', 'locale', '_flags', 'verified', 'mfa_enabled',
+                ('settings', 'bio', 'banner', '_accent_color', 'phone', 'email', 'locale', '_flags', 'verified', 'mfa_enabled',
                  'premium', 'premium_type', '_relationships', '__weakref__')
 
     def __init__(self, *, state, data):
         super().__init__(state=state, data=data)
         self._relationships = {}
+        self.note = Note(state, self.id, user=self)
 
     def __repr__(self):
         return '<ClientUser id={0.id} name={0.name!r} discriminator={0.discriminator!r}' \
@@ -588,7 +580,7 @@ class ClientUser(BaseUser):
         self.premium_type = try_enum(PremiumType, data.get('premium_type', None))
         self.bio = data.get('bio')
         self.banner = data.get('banner')
-        self._banner_color = data.get('banner_color')
+        self._accent_color = data.get('accent_color')
 
     def get_relationship(self, user_id):
         """Retrieves the :class:`Relationship` if applicable.
@@ -638,7 +630,7 @@ class ClientUser(BaseUser):
         -----------
         password: :class:`str`
             The current password for the client's account.
-            Required for everything except avatar, banner(_color), and bio.
+            Required for everything except avatar, banner, accent_colour, and bio.
         new_password: :class:`str`
             The new password you wish to change to.
         email: :class:`str`
@@ -657,8 +649,8 @@ class ClientUser(BaseUser):
         banner: :class:`bytes`
             A :term:`py:bytes-like object` representing the image to upload.
             Could be ``None`` to denote no banner.
-        banner_color: :class:`Colour`
-            A :class:`Colour` object of the color you want to set your profile to.
+        accent_colour/_color: :class:`Colour`
+            A :class:`Colour` object of the colour you want to set your profile to.
         bio: :class:`str`
             Your 'about me' section.
             Could be ``None`` to represent no 'about me'.
@@ -670,7 +662,7 @@ class ClientUser(BaseUser):
         InvalidArgument
             Wrong image format passed for ``avatar``.
         ClientException
-            Password was not passed.
+            Password was not passed when it was required.
             House field was not a HypeSquadHouse.
         """
 
@@ -696,15 +688,15 @@ class ClientUser(BaseUser):
             else:
                 args['banner'] = None
 
-        if 'banner_color' or 'banner_colour' in fields:
-            banner_color = fields.get('banner_color', None)
-            banner_color = fields.get('banner_colour', banner_color)
-            if banner_color is None:
-                args['banner_color'] = banner_color
-            elif not isinstance(house, Colour):
-                raise ClientException('`house` parameter was not a HypeSquadHouse')
+        if 'accent_color' or 'accent_colour' in fields:
+            accent_color = fields.get('accent_color', None)
+            accent_color = fields.get('accent_colour', banner_color)
+            if accent_color is None:
+                args['accent_color'] = accent_color
+            elif not isinstance(accent_color, Colour):
+                raise ClientException('`accent_colour` parameter was not a Colour')
             else:
-                args['banner_color'] = banner_color.value
+                args['accent_color'] = accent_color.value
 
         if 'email' in fields:
             args['email'] = fields['email']
@@ -739,7 +731,6 @@ class ClientUser(BaseUser):
             await http.change_hypesquad_house(value)
 
         data = await http.edit_profile(**args)
-        self.email = data['email']
         try:
             http._token(data['token'])
         except KeyError:
@@ -861,7 +852,7 @@ class ClientUser(BaseUser):
 
         Returns
         -------
-        :class:`dict`
+        :class:`.Settings`
             The client user's updated settings.
         """
         payload = {}
@@ -955,25 +946,18 @@ class ClientUser(BaseUser):
         return Asset._from_user_banner(self._state, self, format=format, static_format=static_format, size=size, user=True)
 
     @property
-    def banner_colour(self):
-        """:class:`Colour`: Returns the banner colour"""
-        try:
-            return Colour(int(f'0x{self._banner_color[1:]}', 0))
-        except TypeError:
-            return
+    def accent_colour(self):
+        """:class:`Colour`: Returns the user's accent colour.
 
-    banner_color = banner_colour
+        There is an alias for this named :attr:`accent_color`.
 
-    @property
-    def banner_colour_url(self):
-        """:class:`Asset`: Returns an :class:`Asset` for the banner colour the user has.
-
-        This is equivalent to calling :meth:`banner_url_as` with
-        the default parameters (i.e. webp/gif detection and a size of 1024).
+        .. versionadded:: 1.9
         """
-        return Asset._from_user_banner_colour(self._state, self)
+        if self._accent_color is None:
+            return None
+        return Colour(self._accent_color)
 
-    banner_color_url = banner_colour_url
+    accent_color = accent_colour
 
     def disable(self, password):
         """|coro|
@@ -993,7 +977,7 @@ class ClientUser(BaseUser):
             Disabling the account failed.
         """
         return self._state.http.disable_account(password)
-    
+
     def delete(self, password):
         """|coro|
 
@@ -1041,7 +1025,7 @@ class User(BaseUser, discord.abc.Messageable):
     id: :class:`int`
         The user's unique ID.
     discriminator: :class:`str`
-        The user's discriminator. This is given when the username has conflicts.
+        The user's discriminator.
     avatar: Optional[:class:`str`]
         The avatar hash the user has. Could be None.
     bot: :class:`bool`

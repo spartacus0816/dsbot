@@ -61,16 +61,13 @@ class Asset:
 
             Returns the hash of the asset.
     """
-    __slots__ = ('BASE', '_state', '_url')
+    __slots__ = ('_state', '_url')
 
-    def __init__(self, state, url=None, *, banner_color=False):
+    BASE = 'https://cdn.discordapp.com'
+
+    def __init__(self, state, url=None):
         self._state = state
         self._url = url
-
-        if banner_color:
-            self.BASE = 'https://singlecolorimage.com'
-        else:
-            self.BASE = 'https://cdn.discordapp.com'
 
     @classmethod
     def _from_avatar(cls, state, user, *, format=None, static_format='webp', size=1024):
@@ -122,7 +119,7 @@ class Asset:
             raise InvalidArgument("static_format must be one of {}".format(VALID_STATIC_FORMATS))
 
         if object.banner is None:
-            return object.banner_colour_url
+            return None
 
         if format is None:
             format = 'gif' if object.is_banner_animated() else static_format
@@ -131,13 +128,6 @@ class Asset:
             return cls(state, '/banners/{0.id}/{0.banner}.{1}?size={2}'.format(object, format, size))
         else:
             return cls(state, '/banners/{0.user.id}/{0.banner}.{1}?size={2}'.format(object, format, size))
-
-    @classmethod
-    def _from_user_banner_colour(cls, state, object):
-        if object.banner_colour is None:
-            return
-        else:
-            return cls(state, '/get/{0}/300x60'.format(str(object.banner_colour)[1:]), banner_color=True)
 
     @classmethod
     def _from_icon(cls, state, object, path, *, format='webp', size=1024):

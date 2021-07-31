@@ -32,27 +32,7 @@ import re
 class ContextProperties: # Thank you Discord-S.C.U.M
     """Represents the Discord X-Context-Properties header.
 
-        .. container:: operations
-
-        .. describe:: str(x)
-
-            Returns the location name.
-
-        .. describe:: bool(x)
-
-            Checks if the properties have a location.
-
-        .. describe:: x == y
-
-            Checks if the properties are equal to other properties.
-
-        .. describe:: x != y
-
-            Checks if the properties are not equal to other properties.
-
-        .. describe:: hash(x)
-
-            Returns the hash of the properties.
+    This header is essential for certain actions (e.g. joining guilds, friend requesting).
     """
 
     __slots__ = ('_data', '_value')

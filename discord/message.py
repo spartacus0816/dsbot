@@ -529,8 +529,6 @@ class Message(Hashable):
         A list of stickers given to the message.
 
         .. versionadded:: 1.6
-    invites: List[:class:`Invite`]
-        A list of invites in the message.
     """
 
     __slots__ = ('_edited_timestamp', 'tts', 'content', 'channel', 'webhook_id',
@@ -984,6 +982,22 @@ class Message(Hashable):
             return 'This server has failed Discovery activity requirements for 3 weeks in a row. If this server fails for 1 more week, it will be removed from Discovery.'
 
     async def invites(self):
+        """|coro|
+
+        Retreives all valid invites in a message.
+
+        The official client does this with every message in the channel you're in.
+
+        Raises
+        ------
+        HTTPException
+            Fetching the invites failed.
+
+        Returns
+        -------
+        List[:class:`Invite`]
+            All valid invites contained in the message.
+        """
         state = self._state
         invite_ids = [utils.resolve_invite(match) for match in re.findall('(?:https?://)?discord(?:app)?\.(?:com/invite|gg)/[a-zA-Z0-9]+/?', self.content)]
         invites = []

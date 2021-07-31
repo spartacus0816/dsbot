@@ -133,8 +133,7 @@ class Settings:
         data.pop('custom_status', None)
 
     def __repr__(self):
-        return '<Settings afk_timeout={0.afk_timeout} friend_source_flags={0.friend_source_flags!r}' \
-                ' locale={0.locale!r} theme={0.theme}>'.format(self)
+        return '<Settings>'.format(self)
 
     def _get_guild(self, id):
         return self._state._get_guild(int(id))
