@@ -15,8 +15,9 @@ Fork Changes
 
 This has been moved to the `website <https://dolf.ml/discord.py-self>`_.
 
-**Credits:**
+| **Credits:**
 | - `arandomnewaccount <https://www.reddit.com/user/obviouslymymain123/>`_ for Discord API help.
+
 
 **Note:**
 | Self-botting/user-botting is against the Discord ToS. This library is a proof of concept and I do not recommend using it. Do so at your own risk.
