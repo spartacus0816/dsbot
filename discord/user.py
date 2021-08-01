@@ -37,9 +37,10 @@ from .settings import Settings
 from .object import Object
 
 class Note:
+    """Represents a Discord note."""
     __slots__ = ('_state', '_note', '_user_id', '_cs_user')
 
-    def __init__(self, state, user_id, *, user=None, note=None):
+    def __init__(self, state, user_id, *, user=None, note=0):
         self._state = state
         self._user_id = user_id
         self._note = note
@@ -55,7 +56,7 @@ class Note:
         ClientException
             Attempted to access note without fetching it.
         """
-        if note is None:
+        if note == 0:
             raise ClientException('Note is not fetched.')
         return self._note
 
@@ -94,8 +95,8 @@ class Note:
             self._note = data['note']
             return data['note']
         except NotFound: # 404 = no note
-            self._note = ''
-            return ''
+            self._note = None
+            return None
 
     async def edit(self, note):
         """|coro|
@@ -121,7 +122,7 @@ class Note:
             Deleting the note failed.
         """
         await self.edit(None)
-        self._note = ''
+        self._note = None
 
     def __str__(self):
         return self._note
@@ -135,6 +136,15 @@ class Note:
         except TypeError:
             return 0
 
+    def __eq__(self, other):
+        try:
+            return isinstance(other, Note) and self.note == other.note
+        except TypeError:
+            return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     def __bool__(self):
         try:
             return bool(self._note)
@@ -142,6 +152,27 @@ class Note:
             return False
 
 class Profile:
+    """Represents a Discord profile.
+
+    Attributes
+    ----------
+    flags: :class:`int`
+        The user's flags. Will be its own class (like public_flags) in the future.
+    bio: Optional[:class:`str`]
+        The user's "about me" field. Could be ``None``.
+    banner: Optional[:class:`str`]
+        The banner hash the user has. Could be ``None``.
+    user: :class:`User`
+        The user the profile represents.
+    premium_since: Optional[:class:`datetime.datetime`]
+        A datetime object denoting how long a user has been premium (had Nitro).
+        Could be ``None``.
+    connected_accounts: Optional[List[:class:`dict`]]
+        The connected accounts that show up on the profile.
+        These are currently just the raw json, but this will change in the future.
+    note: :class:`Note`
+        Represents the note on the profile.
+    """
     def __init__(self, state, data):
         self._state = state
 
@@ -522,8 +553,8 @@ class ClientUser(BaseUser):
         The user's unique ID.
     discriminator: :class:`str`
         The user's discriminator.
-    bio: :class:`str`
-        The user's "about me" field.
+    bio: Optional[:class:`str`]
+        The user's "about me" field. Could be ``None``.
     avatar: Optional[:class:`str`]
         The avatar hash the user has. Could be ``None``.
     banner: Optional[:class:`str`]
@@ -557,7 +588,7 @@ class ClientUser(BaseUser):
     """
     __slots__ = BaseUser.__slots__ + \
                 ('settings', 'bio', 'banner', '_accent_color', 'phone', 'email', 'locale', '_flags', 'verified', 'mfa_enabled',
-                 'premium', 'premium_type', '_relationships', '__weakref__')
+                 'premium', 'premium_type', '_relationships', 'note', '__weakref__')
 
     def __init__(self, *, state, data):
         super().__init__(state=state, data=data)
