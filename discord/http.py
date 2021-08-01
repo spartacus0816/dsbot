@@ -518,8 +518,9 @@ class HTTPClient:
     def get_reaction_users(self, channel_id, message_id, emoji, limit, after=None):
         r = Route('GET', '/channels/{channel_id}/messages/{message_id}/reactions/{emoji}',
                   channel_id=channel_id, message_id=message_id, emoji=emoji)
-
-        params = {'limit': limit}
+        params = {
+            'limit': limit
+        }
         if after:
             params['after'] = after
 
@@ -1099,6 +1100,9 @@ class HTTPClient:
         else:
             value = 'wss://gateway.discord.gg?encoding={0}&v={1}'
         return value.format(encoding, v)
+
+    def get_user(self, user_id):
+        return self.request(Route('GET', '/users/{user_id}', user_id=user_id))
 
     def get_user_profile(self, user_id, *, with_mutual_guilds=True):
         params = {

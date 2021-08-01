@@ -1346,11 +1346,13 @@ class Client:
     async def fetch_user(self, user_id):
         """|coro|
 
-        Retrieves a :class:`.User` based on their ID.
-        This uses the profile endpoint.
+        Retrieves a :class:`~discord.User` based on their ID.
+        You do not have to share any guilds with the user to get
+        this information, however many operations require that you do.
 
-        You now need to share a guild/be friends with this user
-        to get this information.
+        .. note::
+
+            This method is an API call. If you have member cache enabled, consider :meth:`get_user` instead.
 
         Parameters
         -----------
@@ -1361,23 +1363,24 @@ class Client:
         -------
         :exc:`.NotFound`
             A user with this ID does not exist.
-        :exc:`.Forbidden`
-            Not allowed to fetch this user.
         :exc:`.HTTPException`
             Fetching the user failed.
 
         Returns
         --------
-        :class:`.User`
+        :class:`~discord.User`
             The user you requested.
         """
-        profile = await self.fetch_user_profile(user_id, with_mutuals=False, fetch_note=False)
-        return profile.user
+        data = await self.http.get_user(user_id)
+        return User(state=self._connection, data=data)
 
     async def fetch_user_profile(self, user_id, *, with_mutuals=True, fetch_note=True):
         """|coro|
 
         Gets an arbitrary user's profile.
+
+        You must share a guild or be friends with this user to
+        get this information.
 
         Parameters
         ------------
