@@ -2359,7 +2359,7 @@ class Guild(Hashable):
         if user_ids and query:
             raise ValueError('Cannot pass both query and user_ids')
 
-        limit = min(100, limit or 5)
+        limit = min(100, limit or 5) if query else None
         return await self._state.query_members(self, query=query, limit=limit, user_ids=user_ids, presences=presences, cache=cache)
 
     async def change_voice_state(self, *, channel, self_mute=False, self_deaf=False, self_video=None, self_stream=None, preferred_region=''):
@@ -2422,10 +2422,11 @@ class Guild(Hashable):
         }
 
         if duration is not None:
-            fields['mute_config'] = mute_config = dict()
-            mute_config['selected_time_window'] = duration * 3600
-            end_time = datetime.utcnow() + timedelta(hours=duration)
-            mute_config['end_time'] = end_time.isoformat()
+            mute_config = {
+                'selected_time_window': duration * 3600,
+                'end_time': (datetime.utcnow() + timedelta(hours=duration)).isoformat()
+            }
+            fields['mute_config'] = mute_config
 
         await self._state.http.edit_guild_settings(self.id, **fields)
 

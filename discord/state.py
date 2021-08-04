@@ -863,7 +863,7 @@ class ConnectionState:
                 user_id = int(user['id'])
 
                 member = guild.get_member(user_id)
-                if member is not None:
+                if member is not None: # INSERTs are also sent when a user changes range
                     old_member = Member._copy(member)
                     member._update(mdata)
                     user_update = member._update_inner_user(user)
@@ -920,8 +920,8 @@ class ConnectionState:
 
     def _get_create_guild(self, data):
         guild = self._get_guild(int(data['id']))
-        # Discord being Discord starts GUILD_CREATE
-        # streaming after sending an OPCode 14.
+        # Discord being Discord sends a GUILD_CREATE
+        # after an OPCode 14 is sent (a la bots).
         # However, we want that if we forced a
         # GUILD_CREATE for an unavailable guild.
         if guild is not None:
@@ -966,7 +966,6 @@ class ConnectionState:
 
     def parse_guild_create(self, data):
         guild_id = int(data['id'])
-        unavailable = data.get('unavailable')
 
         guild = self._get_create_guild(data)
 
