@@ -116,7 +116,9 @@ class BotBase(GroupMixin):
         if self.owner_ids and not isinstance(self.owner_ids, collections.abc.Collection):
             raise TypeError('owner_ids must be a collection not {0.__class__!r}'.format(self.owner_ids))
 
-        if options.pop('self_bot', False):
+        self.self_bot = self_bot = options.pop('self_bot', False)
+
+        if self_bot:
             self._skip_check = lambda x, y: x != y
         else:
             self._skip_check = lambda x, y: x == y
@@ -295,17 +297,15 @@ class BotBase(GroupMixin):
         Checks if a :class:`~discord.User` or :class:`~discord.Member` is the owner of
         this bot.
 
-        If an :attr:`owner_id` is not set, it is fetched automatically
-        through the use of :meth:`~.Bot.application_info`.
-
-        .. versionchanged:: 1.3
-            The function also checks if the application is team-owned if
-            :attr:`owner_ids` is not set.
-
         Parameters
         -----------
         user: :class:`.abc.User`
             The user to check for.
+
+        Raises
+        -------
+        AttributeError
+            Owners aren't set.
 
         Returns
         --------
@@ -317,14 +317,10 @@ class BotBase(GroupMixin):
             return user.id == self.owner_id
         elif self.owner_ids:
             return user.id in self.owner_ids
+        elif self.self_bot:
+            return user.id == self.user.id
         else:
-            app = await self.application_info()
-            if app.team:
-                self.owner_ids = ids = {m.id for m in app.team.members}
-                return user.id in ids
-            else:
-                self.owner_id = owner_id = app.owner.id
-                return user.id == owner_id
+            raise AttributeError('Owners aren\'t set.')
 
     def before_invoke(self, coro):
         """A decorator that registers a coroutine as a pre-invoke hook.
@@ -1035,12 +1031,9 @@ class Bot(BotBase, discord.Client):
         information on implementing a help command, see :ref:`ext_commands_help_command`.
     owner_id: Optional[:class:`int`]
         The user ID that owns the bot. If this is not set and is then queried via
-        :meth:`.is_owner` then it is fetched automatically using
-        :meth:`~.Bot.application_info`.
+        :meth:`.is_owner` then it will error.
     owner_ids: Optional[Collection[:class:`int`]]
         The user IDs that owns the bot. This is similar to :attr:`owner_id`.
-        If this is not set and the application is team based, then it is
-        fetched automatically using :meth:`~.Bot.application_info`.
         For performance reasons it is recommended to use a :class:`set`
         for the collection. You cannot set both ``owner_id`` and ``owner_ids``.
 

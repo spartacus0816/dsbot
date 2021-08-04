@@ -50,7 +50,8 @@ class ContextProperties: # Thank you Discord-S.C.U.M
             'Guild Header': 'eyJsb2NhdGlvbiI6Ikd1aWxkIEhlYWRlciJ9',
             'Group DM': 'eyJsb2NhdGlvbiI6Ikdyb3VwIERNIn0=',
             'DM Channel': 'eyJsb2NhdGlvbiI6IkRNIENoYW5uZWwifQ==',
-            '/app': 'eyJsb2NhdGlvbiI6ICIvYXBwIn0='
+            '/app': 'eyJsb2NhdGlvbiI6ICIvYXBwIn0=',
+            'Login': 'eyJsb2NhdGlvbiI6IkxvZ2luIn0='
         }
 
         try:
@@ -113,9 +114,23 @@ class ContextProperties: # Thank you Discord-S.C.U.M
         return cls(data)
 
     @classmethod
+    def _from_accept_invite_page_blank(cls):
+        data = {
+            'location': 'Accept Invite Page'
+        }
+        return cls(data)
+
+    @classmethod
     def _from_app(cls):
         data = {
             'location': '/app'
+        }
+        return cls(data)
+
+    @classmethod
+    def _from_login(cls):
+        data = {
+            'location': 'Login'
         }
         return cls(data)
 

@@ -30,6 +30,7 @@ from .utils import parse_time, snowflake_time, _get_as_snowflake
 from .object import Object
 from .mixins import Hashable
 from .enums import ChannelType, VerificationLevel, try_enum
+from .errors import InvalidArgument
 
 class PartialInviteChannel:
     """Represents a "partial" invite channel.
@@ -405,7 +406,7 @@ class Invite(Hashable):
 
         Returns
         -------
-        :class:`.Guild`
+        :class:`.PartialInviteGuild`
             The guild joined. This is not the same guild that is
             added to cache.
         """
@@ -418,7 +419,7 @@ class Invite(Hashable):
         if not new_member:
             raise InvalidArgument('Tried to join a guild you\'re already in.')
 
-        return Guild(data=data['guild'], state=state)
+        return self.guild
 
     accept = use
 

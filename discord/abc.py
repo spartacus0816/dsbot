@@ -850,8 +850,12 @@ class GuildChannel:
             Purpose is unknown.
 
             .. versionadded:: 1.9
-        target_type: Unknown
-            Purpose is unknown.
+        target_type: :class:`int`
+            Used to create application invites.
+
+            .. versionadded:: 1.9
+        target_application_id: :class:`int`
+            ID of the application.
 
             .. versionadded:: 1.9
 
@@ -1097,8 +1101,6 @@ class Messageable(metaclass=abc.ABCMeta):
         """|coro|
 
         Retrieves a single :class:`~discord.Message` from the destination.
-
-        This can only be used by bot accounts.
 
         Parameters
         ------------

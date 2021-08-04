@@ -112,7 +112,6 @@ class HTTPClient:
         self.token = None
         self.proxy = proxy
         self.proxy_auth = proxy_auth
-        self.super_properties = {}
         self.use_clock = not unsync_clock
 
     def recreate(self):
@@ -358,9 +357,6 @@ class HTTPClient:
 
         return data
 
-    def logout(self): # Seems useless? Will be going in the accounts extension eventually.
-        return self.request(Route('POST', '/auth/logout'), json={})
-
     # Group functionality
 
     def start_group(self, recipients):
@@ -593,7 +589,6 @@ class HTTPClient:
         if reason:
             # thanks aiohttp
             r.url = '{0.url}?reason={1}'.format(r, _uriquote(reason))
-
 
         return self.request(r, params=params)
 
@@ -924,11 +919,14 @@ class HTTPClient:
             'unique': options.get('unique', True)
         }
 
-        if options['validate']:
+        if options.get('validate') is not None:
             payload['validate'] = options['validate']
 
-        if options['target_type']:
+        if options.get('target_type') is not None:
             payload['target_type'] = options['target_type']
+
+        if options.get('target_application_id'):
+            payload['target_application_id'] = options['target_application_id']
 
         return self.request(r, json=payload)
 
