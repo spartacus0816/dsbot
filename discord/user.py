@@ -125,10 +125,18 @@ class Note:
         self._note = None
 
     def __str__(self):
-        return self._note
+        note = self._note
+        if self._note is not None:
+            return self._note
+        else:
+            return ''
 
     def __repr__(self):
-        return f'<Note user={self.user!r}>'
+        base = f'<Note user={self.user!r}>'
+        note = self._note
+        if note != 0:
+            base += f' note={note}'
+        return base
 
     def __len__(self):
         try:
@@ -930,8 +938,6 @@ class ClientUser(BaseUser):
     def banner_url(self):
         """:class:`Asset`: Returns an :class:`Asset` for the banner the user has.
 
-        If the user does not have a banner, the banner color is returned instead.
-
         This is equivalent to calling :meth:`banner_url_as` with
         the default parameters (i.e. webp/gif detection and a size of 1024).
         """
@@ -943,8 +949,6 @@ class ClientUser(BaseUser):
 
     def banner_url_as(self, *, format=None, static_format='webp', size=1024):
         """Returns an :class:`Asset` for the banner the user has.
-
-        If the user does not have a banner, the banner color is returned instead.
 
         The format must be one of 'webp', 'jpeg', 'jpg', 'png' or 'gif', and
         'gif' is only valid for animated banner. The size must be a power of

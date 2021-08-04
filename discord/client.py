@@ -529,7 +529,7 @@ class Client:
                 # This is apparently what the official Discord client does.
                 ws_params.update(sequence=self.ws.sequence, resume=True, session=self.ws.session_id)
 
-    async def close(self, *, logout=False):
+    async def close(self):
         """|coro|
 
         Closes the connection to Discord.
@@ -549,9 +549,6 @@ class Client:
 
         if self.ws is not None and self.ws.open:
             await self.ws.close(code=1000)
-
-        if logout:
-            await self.http.logout()
 
         self._ready.clear()
 

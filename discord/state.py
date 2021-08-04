@@ -48,7 +48,7 @@ from .channel import *
 from .raw_models import *
 from .member import Member
 from .role import Role
-from .enums import ChannelType, try_enum, Status, UnavailableGuildType
+from .enums import ChannelType, try_enum, Status, UnavailableGuildType, RequiredActionType
 from . import utils
 from .flags import GuildSubscriptionOptions, MemberCacheFlags
 from .object import Object
@@ -750,6 +750,39 @@ class ConnectionState:
         else:
             self.dispatch('group_remove', channel, user)
 
+    def parse_guild_member_add(self, data):
+        guild = self._get_guild(int(data['guild_id']))
+        if guild is None:
+            log.debug('GUILD_MEMBER_ADD referencing an unknown guild ID: %s. Discarding.', data['guild_id'])
+            return
+
+        member = Member(guild=guild, data=data, state=self)
+        if self.member_cache_flags.joined:
+            guild._add_member(member)
+
+        try:
+            guild._member_count += 1
+        except AttributeError:
+            pass
+
+        #self.dispatch('member_join', member)
+
+    def parse_guild_member_remove(self, data):
+        guild = self._get_guild(int(data['guild_id']))
+        if guild is not None:
+            try:
+                guild._member_count -= 1
+            except AttributeError:
+                pass
+
+            user_id = int(data['user']['id'])
+            member = guild.get_member(user_id)
+            if member is not None:
+                guild._remove_member(member)
+                #self.dispatch('member_remove', member)
+        else:
+            log.debug('GUILD_MEMBER_REMOVE referencing an unknown guild ID: %s. Discarding.', data['guild_id'])
+
     def parse_guild_member_update(self, data):
         guild = self._get_guild(int(data['guild_id']))
         user = data['user']
@@ -780,7 +813,7 @@ class ConnectionState:
             log.debug('GUILD_MEMBER_UPDATE referencing an unknown member ID: %s. Discarding.', user_id)
 
     def parse_guild_sync(self, data):
-        print('HOW THE FUCK DID YOU TRIGGER A `GUILD_SYNC`????\nIf you want to share your secrets, please feel free to email me.')
+        print('HOW THE FUCK DID YOU TRIGGER A `GUILD_SYNC`???\nIf you want to share your secrets, please feel free to email me.')
 
     def parse_guild_member_list_update(self, data):
         self.dispatch('raw_guild_member_list_update', data)
@@ -1152,6 +1185,10 @@ class ConnectionState:
             pass
         else:
             self.dispatch('relationship_remove', old)
+
+    def parse_user_required_action_update(self, data):
+        action = try_enum(RequiredActionType, data['required_action'])
+        self.dispatch('required_action_update', required_action)
 
     def _get_reaction_user(self, channel, user_id):
         if isinstance(channel, TextChannel):

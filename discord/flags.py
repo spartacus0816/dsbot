@@ -486,7 +486,7 @@ class GuildSubscriptionOptions:
         if concurrent_guilds < 1:
             raise TypeError('concurrent_guilds must be positive')
 
-        max_online = kwargs.get('max_online', 12000)
+        max_online = kwargs.get('max_online', 6000)
         if not isinstance(max_online, int):
             raise TypeError('max_online must be an int')
         if max_online < 1:

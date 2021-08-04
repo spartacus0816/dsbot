@@ -114,7 +114,7 @@ class Settings:
         self.explicit_content_filter = try_enum(UserContentFilter, data.get('explicit_content_filter'))
         self.friend_source_flags = FriendFlags._from_dict(data.get('friend_source_flags'))
         self.gif_auto_play = data.get('gif_auto_play')
-        self.guild_folders = [GuildFolder(data=folder, state=state) for folder in data['guild_folders']]
+        self.guild_folders = [GuildFolder(data=folder, state=state) for folder in data.get('guild_folders', [])]
         self.guild_positions = list(filter(None, map(self._get_guild, data.get('guild_positions', []))))
         self.inline_attachment_media = data.get('inline_attachment_media')
         self.inline_embed_media = data.get('inline_embed_media')

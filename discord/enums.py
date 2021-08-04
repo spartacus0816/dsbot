@@ -509,6 +509,12 @@ class UnavailableGuildType(Enum):
     existing = 'ready'
     joined = 'joined'
 
+class RequiredActionType(Enum):
+    verify_phone = 'REQUIRE_VERIFIED_PHONE'
+    verify_email = 'REQUIRE_VERIFIED_EMAIL'
+    captcha = 'REQUIRE_CAPTCHA'
+    accept_terms = 'AGREEMENTS'
+
 def try_enum(cls, val):
     """A function that tries to turn the value into enum ``cls``.
 
