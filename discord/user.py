@@ -1180,7 +1180,6 @@ class User(BaseUser, discord.abc.Messageable):
         HTTPException
             Blocking the user failed.
         """
-
         await self._state.http.add_relationship(self.id, type=RelationshipType.blocked.value, action=RelationshipAction.block)
 
     async def unblock(self):
@@ -1245,11 +1244,9 @@ class User(BaseUser, discord.abc.Messageable):
 
         state = self._state
         data = await state.http.get_user_profile(self.id)
-
         data['mutual_friends'] = await state.http.get_mutual_friends(self.id)
 
         profile = Profile(state, data)
-
         await profile.note.fetch()
 
         return profile
