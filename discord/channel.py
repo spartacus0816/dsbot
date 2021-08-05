@@ -33,7 +33,7 @@ from .enums import ChannelType, try_enum, VoiceRegion
 from .mixins import Hashable
 from . import utils
 from .asset import Asset
-from .errors import ClientException, NoMoreItems, InvalidArgument
+from .errors import ClientException, NoMoreItems, InvalidArgument, NotFound
 
 __all__ = (
     'TextChannel',
@@ -46,9 +46,13 @@ __all__ = (
     '_channel_factory',
 )
 
-async def _delete_messages(messages):
-    for m in messages:
-        await m.delete()
+async def _delete_messages(state, channel_id, messages):
+    delete_message = state.http.delete_message
+    for msg in messages:
+        try:
+            await delete_message(channel_id, msg.id)
+        except NotFound:
+            pass
 
 class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
     """Represents a Discord guild text channel.
@@ -246,6 +250,40 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
             'rate_limit_per_user': self.slowmode_delay
         }, name=name)
 
+    async def delete_messages(self, messages):
+        """|coro|
+
+        Deletes a list of messages. This is similar to :meth:`Message.delete`
+        except it bulk deletes multiple messages.
+
+        You must have the :attr:`~Permissions.manage_messages` permission to
+        use this (unless they're your own).
+
+        .. note::
+            Users do not have access to the message bulk-delete endpoint.
+            Since messages are just iterated over and deleted one-by-one,
+            it's easy to get ratelimited using this method.
+
+        Parameters
+        -----------
+        messages: Iterable[:class:`abc.Snowflake`]
+            An iterable of messages denoting which ones to bulk delete.
+
+        Raises
+        ------
+        Forbidden
+            You do not have proper permissions to delete the messages.
+        HTTPException
+            Deleting the messages failed.
+        """
+        if not isinstance(messages, (list, tuple)):
+            messages = list(messages)
+
+        if len(messages) == 0:
+            return # do nothing
+
+        await _delete_messages(self._state, self.id, messages)
+
     async def purge(self, *, limit=100, check=None, before=None, after=None, around=None, oldest_first=False):
         """|coro|
 
@@ -300,6 +338,8 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
         if check is None:
             check = lambda m: True
 
+        state = self._state
+        channel_id = self.id
         iterator = self.history(limit=limit, before=before, after=after, oldest_first=oldest_first, around=around)
         ret = []
         count = 0
@@ -308,21 +348,14 @@ class TextChannel(discord.abc.Messageable, discord.abc.GuildChannel, Hashable):
             try:
                 msg = await iterator.next()
             except NoMoreItems:
-                # no more messages to poll
-                if count >= 2:
-                    # more than 2 messages -> bulk delete
-                    to_delete = ret[-count:]
-                    await _delete_messages(to_delete)
-                elif count == 1:
-                    # delete a single message
-                    await ret[-1].delete()
-
+                to_delete = ret[-count:]
+                await _delete_messages(state, channel_id, to_delete)
                 return ret
             else:
                 if count == 100:
                     # we've reached a full 'queue'
                     to_delete = ret[-100:]
-                    await _delete_messages(to_delete)
+                    await _delete_messages(state, to_delete)
                     count = 0
                     await asyncio.sleep(1)
 
