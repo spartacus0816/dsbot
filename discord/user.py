@@ -126,16 +126,18 @@ class Note:
 
     def __str__(self):
         note = self._note
-        if self._note is not None:
-            return self._note
-        else:
+        if note is None:
             return ''
+        if note == 0:
+            raise ClientException('Note is not fetched.')
+        else:
+            return note
 
     def __repr__(self):
         base = f'<Note user={self.user!r}>'
         note = self._note
         if note != 0:
-            base += f' note={note}'
+            base += f' note={note or ""}'
         return base
 
     def __len__(self):
