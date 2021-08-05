@@ -182,6 +182,7 @@ class ConnectionState:
         self._calls = {}
         self._guilds = {}
         self._unavailable_guilds = {}
+        self._queued_guilds = []
         self._voice_clients = {}
 
         # LRU of max size 128
@@ -496,6 +497,9 @@ class ConnectionState:
         self.dispatch('resumed')
 
     def parse_message_create(self, data):
+        guild_id = int(data['guild_id'])
+        if guild_id in self._unavailable_guilds or guild_id in self._queued_guilds:
+            return
         channel, _ = self._get_guild_channel(data)
         message = Message(channel=channel, data=data, state=self)
         self.dispatch('message', message)
@@ -945,6 +949,8 @@ class ConnectionState:
         return request.get_future()
 
     async def _parse_and_dispatch(self, guild, *, chunk, subscribe):
+        self._queued_guilds.append(guild.id)
+
         if chunk:
             try:
                 await asyncio.wait_for(self.chunk_guild(guild), timeout=60.0)
@@ -953,6 +959,8 @@ class ConnectionState:
 
         if subscribe:
             await guild.subscribe(max_online=self._subscription_options.max_online)
+
+        self._queued_guilds.remove(guild.id)
 
         # Dispatch available/join depending on circumstances
         if guild.id in self._unavailable_guilds:
