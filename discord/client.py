@@ -1412,7 +1412,7 @@ class Client:
 
         profile = Profile(state, data)
 
-        if with_note:
+        if fetch_note:
             await profile.note.fetch()
 
         return profile
