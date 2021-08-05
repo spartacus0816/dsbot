@@ -192,7 +192,7 @@ class Asset:
         if not utils.valid_icon_size(size):
             raise InvalidArgument("size must be a power of 2 between 16 and 4096")
 
-        return cls(state, '/stickers/{0.id}/{0.image}.png?size={2}'.format(sticker, format, size))
+        return cls(state, '/stickers/{0.id}/{0.image}.png?size={1}'.format(sticker, size))
 
     @classmethod
     def _from_emoji(cls, state, emoji, *, format=None, static_format='png'):

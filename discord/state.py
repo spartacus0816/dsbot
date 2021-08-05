@@ -1192,7 +1192,7 @@ class ConnectionState:
             self.dispatch('relationship_remove', old)
 
     def parse_user_required_action_update(self, data):
-        action = try_enum(RequiredActionType, data['required_action'])
+        required_action = try_enum(RequiredActionType, data['required_action'])
         self.dispatch('required_action_update', required_action)
 
     def _get_reaction_user(self, channel, user_id):
