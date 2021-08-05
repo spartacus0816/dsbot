@@ -240,6 +240,4 @@ class Emoji(_EmojiTag):
         """
 
         name = name or self.name
-        if roles:
-            roles = [role.id for role in roles]
         await self._state.http.edit_custom_emoji(self.guild.id, self.id, name=name)

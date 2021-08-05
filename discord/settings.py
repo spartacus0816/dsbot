@@ -133,7 +133,7 @@ class Settings:
         data.pop('custom_status', None)
 
     def __repr__(self):
-        return '<Settings>'.format(self)
+        return '<Settings>'
 
     def _get_guild(self, id):
         return self._state._get_guild(int(id))

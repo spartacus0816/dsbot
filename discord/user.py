@@ -24,8 +24,6 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 """
 
-from collections import namedtuple
-
 import discord.abc
 from .flags import PublicUserFlags
 from .utils import snowflake_time, _bytes_to_base64_data, parse_time, cached_slot_property
@@ -733,7 +731,7 @@ class ClientUser(BaseUser):
 
         if 'accent_color' or 'accent_colour' in fields:
             accent_color = fields.get('accent_color', None)
-            accent_color = fields.get('accent_colour', banner_color)
+            accent_color = fields.get('accent_colour', accent_color)
             if accent_color is None:
                 args['accent_color'] = accent_color
             elif not isinstance(accent_color, Colour):

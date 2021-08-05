@@ -155,9 +155,6 @@ class Template:
         if icon is not None:
             icon = _bytes_to_base64_data(icon)
 
-        region = region or VoiceRegion.us_west
-        region_value = region.value
-
         data = await self._state.http.create_from_template(self.code, name, icon)
         return Guild(data=data, state=self._state)
 

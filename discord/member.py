@@ -33,11 +33,10 @@ from operator import attrgetter
 import discord.abc
 
 from . import utils
-from .errors import ClientException
 from .user import BaseUser, User
 from .activity import create_activity
 from .permissions import Permissions
-from .enums import Status, try_enum
+from .enums import RelationshipAction, Status, try_enum
 from .colour import Colour
 from .object import Object
 from .asset import Asset

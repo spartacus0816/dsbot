@@ -25,7 +25,6 @@ DEALINGS IN THE SOFTWARE.
 """
 
 from .enums import RelationshipAction, RelationshipType, try_enum
-from . import utils
 
 class Relationship:
     """Represents a relationship in Discord.
