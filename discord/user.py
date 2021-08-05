@@ -38,14 +38,14 @@ from .object import Object
 
 class Note:
     """Represents a Discord note."""
-    __slots__ = ('_state', '_note', '_user_id', '_cs_user')
+    __slots__ = ('_state', '_note', '_user_id', '_user')
 
     def __init__(self, state, user_id, *, user=None, note=0):
         self._state = state
         self._user_id = user_id
         self._note = note
         if user:
-            self._cs_user = user
+            self._user = user
 
     @property
     def note(self):
@@ -60,7 +60,7 @@ class Note:
             raise ClientException('Note is not fetched.')
         return self._note
 
-    @cached_slot_property('_cs_user')
+    @cached_slot_property('_user')
     def user(self):
         """Returns the :class:`User` the note belongs to.
 
@@ -126,18 +126,20 @@ class Note:
 
     def __str__(self):
         note = self._note
-        if note is None:
-            return ''
         if note == 0:
             raise ClientException('Note is not fetched.')
+        elif note is None:
+            return ''
         else:
             return note
 
     def __repr__(self):
-        base = f'<Note user={self.user!r}>'
+        base = f'<Note user={self.user!r}'
         note = self._note
         if note != 0:
-            base += f' note={note or ""}'
+            base += f' note={note or ""}>'
+        else:
+            base += '>'
         return base
 
     def __len__(self):
