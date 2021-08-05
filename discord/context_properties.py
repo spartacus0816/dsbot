@@ -26,8 +26,6 @@ DEALINGS IN THE SOFTWARE.
 
 from base64 import b64encode
 import json
-import logging
-import re
 
 class ContextProperties: # Thank you Discord-S.C.U.M
     """Represents the Discord X-Context-Properties header.

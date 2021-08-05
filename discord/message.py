@@ -35,7 +35,7 @@ from .emoji import Emoji
 from .partial_emoji import PartialEmoji
 from .calls import CallMessage
 from .enums import MessageType, ChannelType, try_enum
-from .errors import InvalidArgument, ClientException, HTTPException, DiscordException
+from .errors import InvalidArgument, HTTPException, DiscordException
 from .embeds import Embed
 from .member import Member
 from .flags import MessageFlags

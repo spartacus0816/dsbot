@@ -28,10 +28,8 @@ import asyncio
 from collections import deque, OrderedDict
 import copy
 import datetime
-import itertools
 import logging
 import weakref
-import warnings
 import inspect
 
 import os

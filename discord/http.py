@@ -30,8 +30,6 @@ from datetime import datetime
 import json
 import logging
 from random import choice, getrandbits
-import re
-import sys
 from urllib.parse import quote as _uriquote
 import weakref
 
@@ -39,7 +37,7 @@ import aiohttp
 
 from .context_properties import ContextProperties
 from .enums import RelationshipAction
-from .errors import HTTPException, Forbidden, NotFound, LoginFailure, DiscordServerError, GatewayNotFound
+from .errors import HTTPException, Forbidden, NotFound, LoginFailure, DiscordServerError#, GatewayNotFound
 from .gateway import DiscordClientWebSocketResponse
 from . import utils
 

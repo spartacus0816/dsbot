@@ -1896,8 +1896,6 @@ class Guild(Hashable):
         """
 
         img = utils._bytes_to_base64_data(image)
-        if roles:
-            roles = [role.id for role in roles]
         data = await self._state.http.create_custom_emoji(self.id, name, img)
         return self._state.store_emoji(self, data)
 

@@ -512,7 +512,7 @@ class WebhookMessage(Message):
         return self._state._webhook.delete_message(self.id)
 
     async def invites():
-        raise NotImplemented()
+        raise NotImplementedError()
 
 class Webhook(Hashable):
     """Represents a Discord webhook.
