@@ -36,7 +36,7 @@ from .role import Role
 from .member import Member, VoiceState
 from .emoji import Emoji
 from .errors import InvalidData
-from .permissions import PermissionOverwrite, Permissions
+from .permissions import PermissionOverwrite
 from .colour import Colour
 from .errors import InvalidArgument, ClientException
 from .channel import *

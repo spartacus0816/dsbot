@@ -41,7 +41,7 @@ from .channel import _channel_factory
 from .enums import ChannelType, Status, try_enum
 from .mentions import AllowedMentions
 from .errors import *
-from .enums import Status, VoiceRegion
+from .enums import Status
 from .gateway import *
 from .activity import BaseActivity, create_activity
 from .voice_client import VoiceClient
@@ -52,7 +52,6 @@ from .object import Object
 from .backoff import ExponentialBackoff
 from .webhook import Webhook
 from .iterators import GuildIterator
-from .colour import Colour
 from .appinfo import AppInfo
 
 log = logging.getLogger(__name__)

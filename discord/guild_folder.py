@@ -55,7 +55,7 @@ class GuildFolder:
     def __len__(self):
         return len(self.name)
 
-    def __eq__(self):
+    def __eq__(self, other):
         return isinstance(other, GuildFolder) and self.id == other.id
 
     def __ne__(self, other):
