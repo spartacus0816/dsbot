@@ -29,7 +29,7 @@ from collections import deque, OrderedDict
 import copy
 import datetime
 import logging
-import weakref
+from weakref import WeakValueDictionary
 import inspect
 
 import os
@@ -46,7 +46,7 @@ from .channel import *
 from .raw_models import *
 from .member import Member
 from .role import Role
-from .enums import ChannelType, try_enum, Status, UnavailableGuildType, RequiredActionType
+from .enums import ChannelType, try_enum, Status, UnavailableGuildType, RequiredActionType, VoiceRegion
 from . import utils
 from .flags import GuildSubscriptionOptions, MemberCacheFlags
 from .object import Object
@@ -102,7 +102,7 @@ async def logging_coroutine(coroutine, *, info):
         log.exception('Exception occurred during %s', info)
 
 class ConnectionState:
-    def __init__(self, *, dispatch, handlers, hooks, syncer, http, loop, **options):
+    def __init__(self, *, dispatch, handlers, hooks, http, loop, **options):
         self.loop = loop
         self.http = http
         self.max_messages = options.get('max_messages', 1000)
@@ -110,14 +110,10 @@ class ConnectionState:
             self.max_messages = 1000
 
         self.dispatch = dispatch
-        self.syncer = syncer
         self.handlers = handlers
         self.hooks = hooks
         self._ready_task = None
         self.heartbeat_timeout = options.get('heartbeat_timeout', 60.0)
-        self.guild_ready_timeout = options.get('guild_ready_timeout', 2.0)
-        if self.guild_ready_timeout < 0:
-            raise ValueError('guild_ready_timeout cannot be negative')
 
         allowed_mentions = options.get('allowed_mentions')
 
@@ -175,12 +171,12 @@ class ConnectionState:
 
     def clear(self):
         self.user = None
-        self._users = weakref.WeakValueDictionary()
+        self._users = WeakValueDictionary()
         self._emojis = {}
         self._calls = {}
         self._guilds = {}
         self._unavailable_guilds = {}
-        self._queued_guilds = []
+        self._queued_guilds = {}
         self._voice_clients = {}
 
         # LRU of max size 128
@@ -246,7 +242,7 @@ class ConnectionState:
             user = self._users[user_id]
             # We use the data available to us since we
             # might not have events for that user.
-            # However, sometimes the data only has an ID.
+            # However, the data may only have an ID.
             try:
                 user._update(data)
             except KeyError:
@@ -271,7 +267,10 @@ class ConnectionState:
         return list(self._guilds.values())
 
     def _get_guild(self, guild_id):
-        return self._guilds.get(guild_id)
+        guild = self._guilds.get(guild_id)
+        if guild is None:
+            guild = self._queued_guilds.get(guild_id)
+        return guild
 
     def _add_guild(self, guild):
         self._guilds[guild.id] = guild
@@ -366,7 +365,7 @@ class ConnectionState:
         await ws.request_lazy_guild(guild_id, typing=True, activities=True, threads=True)
 
     async def chunker(self, guild_id, query='', limit=0, presences=True, *, nonce=None):
-        ws = self._get_websocket() # This is ignored upstream
+        ws = self._get_websocket()
         await ws.request_chunks([guild_id], query=query, limit=limit, presences=presences, nonce=nonce)
 
     async def query_members(self, guild, query, limit, user_ids, cache, presences):
@@ -377,7 +376,6 @@ class ConnectionState:
         self._chunk_requests[request.nonce] = request
 
         try:
-            # start the query operation
             await ws.request_chunks([guild_id], query=query, limit=limit, user_ids=user_ids, presences=presences, nonce=request.nonce)
             return await asyncio.wait_for(request.wait(), timeout=30.0)
         except asyncio.TimeoutError:
@@ -482,7 +480,8 @@ class ConnectionState:
             self._add_private_channel(factory(me=user, data=pm, state=self))
 
         # Extras
-        self.preferred_region = data.get('geo_ordered_rtc_regions', [None])[0]
+        region = data.get('geo_ordered_rtc_regions', ['us-west'])[0]
+        self.preferred_region = try_enum(VoiceRegion, region)
         user.settings = Settings(data=data.get('user_settings', {}), state=self)
 
         # We're done
@@ -496,7 +495,7 @@ class ConnectionState:
 
     def parse_message_create(self, data):
         guild_id = int(data['guild_id'])
-        if guild_id in self._unavailable_guilds or guild_id in self._queued_guilds:
+        if guild_id in self._unavailable_guilds:
             return
         channel, _ = self._get_guild_channel(data)
         message = Message(channel=channel, data=data, state=self)
@@ -665,7 +664,7 @@ class ConnectionState:
                 self.dispatch('guild_channel_delete', channel)
         else:
             # The reason we're doing this is so it's also removed from the
-            # private channel by user cache as well
+            # private channel by user cache as well.
             channel = self._get_private_channel(channel_id)
             if channel is not None:
                 self._remove_private_channel(channel)
@@ -727,9 +726,9 @@ class ConnectionState:
         last_pin = utils.parse_time(data['last_pin_timestamp']) if data['last_pin_timestamp'] else None
 
         try:
-            # I have not imported discord.abc in this file
-            # the isinstance check is also 2x slower than just checking this attribute
-            # so we're just gonna check it since it's easier and faster and lazier
+            # I have not imported discord.abc in this file;
+            # the isinstance check is also 2x slower than just checking this attribute,
+            # so we're just gonna check it since it's easier and faster and lazier.
             channel.guild
         except AttributeError:
             self.dispatch('private_channel_pins_update', channel, last_pin)
@@ -753,6 +752,9 @@ class ConnectionState:
             self.dispatch('group_remove', channel, user)
 
     def parse_guild_member_add(self, data):
+        # IIRC this is sent when you join a guild...
+        # This is currently useless since the guild is
+        # probably in the middle of being subscribed.
         guild = self._get_guild(int(data['guild_id']))
         if guild is None:
             log.debug('GUILD_MEMBER_ADD referencing an unknown guild ID: %s. Discarding.', data['guild_id'])
@@ -770,6 +772,8 @@ class ConnectionState:
         #self.dispatch('member_join', member)
 
     def parse_guild_member_remove(self, data):
+        # In rare events this is sent. Will probably be used more
+        # in the future (when on_member_remove returns).
         guild = self._get_guild(int(data['guild_id']))
         if guild is not None:
             try:
@@ -947,7 +951,7 @@ class ConnectionState:
         return request.get_future()
 
     async def _parse_and_dispatch(self, guild, *, chunk, subscribe):
-        self._queued_guilds.append(guild.id)
+        self._queued_guilds[guild.id] = guild
 
         if chunk:
             try:
@@ -958,7 +962,7 @@ class ConnectionState:
         if subscribe:
             await guild.subscribe(max_online=self._subscription_options.max_online)
 
-        self._queued_guilds.remove(guild.id)
+        self._queued_guilds.pop(guild.id)
 
         # Dispatch available/join depending on circumstances
         if guild.id in self._unavailable_guilds:
@@ -1016,7 +1020,7 @@ class ConnectionState:
             self.dispatch('guild_unavailable', guild)
             return
 
-        # do a cleanup of the messages cache
+        # Cleanup the message cache
         if self._messages is not None:
             self._messages = deque((msg for msg in self._messages if msg.guild != guild), maxlen=self.max_messages)
 
@@ -1135,7 +1139,7 @@ class ConnectionState:
             else:
                 log.debug('VOICE_STATE_UPDATE referencing an unknown member ID: %s. Discarding.', data['user_id'])
         else:
-            # in here we're either at private or group calls
+            # We're at calls
             call = self._calls.get(channel_id)
             if call is not None:
                 call._update_voice_state(data)
