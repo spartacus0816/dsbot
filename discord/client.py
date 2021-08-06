@@ -165,11 +165,6 @@ class Client:
         WebSocket in the case of not receiving a HEARTBEAT_ACK. Useful if
         processing the initial packets take too long to the point of disconnecting
         you. The default timeout is 60 seconds.
-    guild_ready_timeout: :class:`float`
-        The maximum number of seconds to wait for the GUILD_CREATE stream to end before
-        preparing the member cache and firing READY. The default timeout is 2 seconds.
-
-        .. versionadded:: 1.4
     assume_unsync_clock: :class:`bool`
         Whether to assume the system clock is unsynced. This applies to the ratelimit handling
         code. If this is set to ``True``, the default, then the library uses the time to reset
@@ -223,10 +218,7 @@ class Client:
 
     def _get_state(self, **options):
         return ConnectionState(dispatch=self.dispatch, handlers=self._handlers,
-                               hooks=self._hooks, syncer=self._syncer, http=self.http, loop=self.loop, **options)
-
-    async def _syncer(self, guilds):
-        await self.ws.request_sync(guilds)
+                               hooks=self._hooks, http=self.http, loop=self.loop, **options)
 
     def _handle_ready(self):
         self._ready.set()

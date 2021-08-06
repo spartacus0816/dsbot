@@ -2395,7 +2395,7 @@ class Guild(Hashable):
         if channel_id and preferred_region == '':
             preferred_region = state.preferred_region
 
-        await ws.voice_state(self.id, channel_id, self_mute, self_deaf, self_video, self_stream, preferred_region=preferred_region)
+        await ws.voice_state(self.id, channel_id, self_mute, self_deaf, self_video, self_stream, preferred_region=str(preferred_region))
 
     async def mute(self, *, duration=None):
         """|coro|

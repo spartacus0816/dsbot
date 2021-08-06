@@ -207,6 +207,7 @@ class VoiceRegion(Enum):
     india         = 'india'
     europe        = 'europe'
     dubai         = 'dubai'
+    newark        = 'newark'
     vip_us_east   = 'vip-us-east'
     vip_us_west   = 'vip-us-west'
     vip_amsterdam = 'vip-amsterdam'

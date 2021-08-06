@@ -900,7 +900,7 @@ class ClientUser(BaseUser):
 
         content_filter = kwargs.pop('explicit_content_filter', None)
         if content_filter:
-            payload.update({'explicit_content_filter': content_filter.to_dict()})
+            payload.update({'explicit_content_filter': content_filter.value})
 
         animate_stickers = kwargs.pop('animate_stickers', None)
         if animate_stickers:
@@ -908,9 +908,7 @@ class ClientUser(BaseUser):
 
         friend_flags = kwargs.pop('friend_source_flags', None)
         if friend_flags:
-            dicts = [{}, {'mutual_guilds': True}, {'mutual_friends': True},
-            {'mutual_guilds': True, 'mutual_friends': True}, {'all': True}]
-            payload.update({'friend_source_flags': dicts[friend_flags.value]})
+            payload.update({'friend_source_flags': friend_flags.to_dict()})
 
         guild_positions = kwargs.pop('guild_positions', None)
         if guild_positions:
