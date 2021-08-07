@@ -226,8 +226,6 @@ class Profile:
     def banner_url(self):
         """:class:`Asset`: Returns an :class:`Asset` for the banner the user has.
 
-        If the user does not have a banner, the banner color is returned instead.
-
         This is equivalent to calling :meth:`banner_url_as` with
         the default parameters (i.e. webp/gif detection and a size of 1024).
 
@@ -244,8 +242,6 @@ class Profile:
 
     def banner_url_as(self, *, format=None, static_format='webp', size=1024):
         """Returns an :class:`Asset` for the banner the user has.
-
-        If the user does not have a banner, the banner color is returned instead.
 
         The format must be one of 'webp', 'jpeg', 'jpg', 'png' or 'gif', and
         'gif' is only valid for animated banner. The size must be a power of
