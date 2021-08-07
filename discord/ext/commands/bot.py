@@ -116,10 +116,16 @@ class BotBase(GroupMixin):
         if self.owner_ids and not isinstance(self.owner_ids, collections.abc.Collection):
             raise TypeError('owner_ids must be a collection not {0.__class__!r}'.format(self.owner_ids))
 
-        self.self_bot = self_bot = options.pop('self_bot', False)
+        self_bot = options.get('self_bot', False)
+        user_bot = options.get('user_bot', False)
+
+        if self_bot and user_bot:
+            raise TypeError('Both self_bot and user_bot are set.')
 
         if self_bot:
             self._skip_check = lambda x, y: x != y
+        elif user_bot:
+            self._skip_check = lambda x, y: False
         else:
             self._skip_check = lambda x, y: x == y
 
@@ -317,8 +323,6 @@ class BotBase(GroupMixin):
             return user.id == self.owner_id
         elif self.owner_ids:
             return user.id in self.owner_ids
-        elif self.self_bot:
-            return user.id == self.user.id
         else:
             raise AttributeError('Owners aren\'t set.')
 
