@@ -15,7 +15,7 @@ __title__ = 'discord'
 __author__ = 'Rapptz'
 __license__ = 'MIT'
 __copyright__ = 'Copyright 2015-present Rapptz'
-__version__ = '1.9.1'
+__version__ = '1.9.2'
 
 __path__ = __import__('pkgutil').extend_path(__path__, __name__)
 
@@ -61,6 +61,6 @@ from .sticker import Sticker
 
 VersionInfo = namedtuple('VersionInfo', 'major minor micro releaselevel serial')
 
-version_info = VersionInfo(major=1, minor=9, micro=1, releaselevel='final', serial=0)
+version_info = VersionInfo(major=1, minor=9, micro=2, releaselevel='final', serial=0)
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
